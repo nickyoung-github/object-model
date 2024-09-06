@@ -70,7 +70,7 @@ class Persistable(Base, PersistableMixin):
         if "__init_subclass__" in cls.__dict__:
             raise RuntimeError(f"Redefinition of __init_subclass__ by {cls} is not allowed")
 
-        cls.check_persistable_class(Persistable, tuple(f.name for f in fields(cls)))
+        cls._check_persistable_class(Persistable, tuple(f.name for f in fields(cls)))
 
     def __post_init__(self):
         PersistableMixin.__init__(self)

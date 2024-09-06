@@ -49,7 +49,7 @@ class PersistableModel(BaseModel, PersistableMixin):
         if "__pydantic_init_subclass__" in cls.__dict__:
             raise RuntimeError(f"Redefinition of __pydantic_init_subclass__ by {cls} is not allowed")
 
-        cls.check_persistable_class(PersistableModel, tuple(cls.model_fields.keys()))
+        cls._check_persistable_class(PersistableModel, tuple(cls.model_fields.keys()))
 
     def model_post_init(self, __context: Any) -> None:
         PersistableMixin.__init__(self)

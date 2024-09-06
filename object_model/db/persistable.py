@@ -146,7 +146,7 @@ class PersistableMixin:
         return type_name(id_type), dumps(ret)
 
     @classmethod
-    def check_persistable_class(cls, persistable: type, fields: tuple[str, ...]):
+    def _check_persistable_class(cls, persistable: type, fields: tuple[str, ...]):
         bases: list[persistable] = [b for b in cls.__bases__ if issubclass(b, persistable)]
         if len(bases) > 1:
             raise TypeError(f"{cls} derives from multiple Persistable classes: {bases}")
