@@ -114,10 +114,11 @@ class PersistableMixin:
 
             # ToDo: Add a warning
 
-            module_name, _, _ = typ.rpartition(".")
-            import_module(module_name)
+            module_name, _, typename = typ.rpartition(".")
+            module = import_module(module_name)
+            typ = getattr(module, typename)
 
-            ret = TypeAdapter(typ).validate_python(dict_contents)
+            ret = typ.validate_python(dict_contents)
 
         object.__setattr__(ret, "_PersistableMixin__effective_time", record.effective_time)
         object.__setattr__(ret, "_PersistableMixin__entry_time", record.entry_time)
