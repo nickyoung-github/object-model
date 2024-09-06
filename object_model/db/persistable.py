@@ -3,8 +3,12 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 import datetime as dt
-from orjson import dumps
+from importlib import import_module
+from orjson import dumps, loads
+from pydantic import TypeAdapter, ValidationError
 from typing import Any
+
+from ..typing import _one_of
 
 
 def type_name(typ: type) -> str:
@@ -92,7 +96,29 @@ class PersistableMixin:
 
     @classmethod
     def from_db_record(cls, record: DBRecord) -> PersistableMixin:
-        ret = cls.model_validate_json(record.contents)
+        typ = _one_of(cls) if cls.__subclasses__() else cls
+
+        try:
+            ret = TypeAdapter(typ).validate_json(record.contents)
+        except ValidationError as e:
+            if "does not match any of the expected tags" not in str(e):
+                raise e
+
+            # We are attempting to deserialise a class that has not been imported, attempt to import dynamically
+            # This is slow
+
+            dict_contents = loads(record.contents)
+            typ = dict_contents.get("type_")
+            if typ is None:
+                raise RuntimeError(f"Failed to load {record.object_type} with id {record.object_id}: no type_ present")
+
+            # ToDo: Add a warning
+
+            module_name, _, _ = typ.rpartition(".")
+            import_module(module_name)
+
+            ret = TypeAdapter(typ).validate_python(dict_contents)
+
         object.__setattr__(ret, "_PersistableMixin__effective_time", record.effective_time)
         object.__setattr__(ret, "_PersistableMixin__entry_time", record.entry_time)
         object.__setattr__(ret, "_PersistableMixin__effective_version", record.effective_version)

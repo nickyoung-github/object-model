@@ -1,8 +1,9 @@
+import datetime as dt
 from time import sleep
 from typing import Any
 
 from object_model import NamedPersistableModel, OneOf
-from object_model.db import DBFailedUpdateError, DBUnknownError, SqliteContext
+from object_model.db import DBFailedUpdateError, SqliteContext
 
 
 class Container(NamedPersistableModel):
@@ -20,6 +21,11 @@ class Nested(NamedPersistableModel):
 class Outer(NamedPersistableModel):
     the_nested: Nested
     the_version: int = 0
+
+
+class Container3(Container2):
+    # Deliberately declared after the OneOf declaration in Nested
+    date: dt.date
 
 
 def test_roundtrip():
@@ -90,3 +96,14 @@ def test_update():
     # ... but that when we specify entry time too, we get the original
     o_v1_orig = db.read(Outer, "outer", effective_time=o_v1.effective_time, entry_time=o_v1.entry_time).value
     assert o_v1_orig == o_v1
+
+
+def test_load_via_base():
+    c3 = Container3(name="container3", contents={"foo": 1}, rank=2, date=dt.date.today())
+    db = SqliteContext()
+
+    result = db.write(c3)
+    assert result.result()
+
+    c = db.read(Container, "container3").value
+    assert c == c3

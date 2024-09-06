@@ -1,4 +1,4 @@
-from .exceptions import (
+from .exception import (
     DBError,
     DBDuplicateWriteError,
     DBFailedUpdateError,
