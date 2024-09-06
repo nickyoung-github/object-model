@@ -52,7 +52,7 @@ def test_invalid_one_of_fails():
     c3 = Container3(name="container", contents={"foo": 1}, rank=2, date=dt.date.today())
 
     try:
-        # This should fail as Container 3 was declared after Container and the OneOf will not see it
+        # This should fail as Container3 was declared after Nested and the OneOf will not see it
         Outer(name="outer", the_nested=Nested(name="nested", container=c3))
     except ValidationError:
         assert True

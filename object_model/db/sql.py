@@ -104,7 +104,7 @@ class SqlDBContext(DBContext):
 
     def _execute(self, username: str, hostname: str, comment: str | None):
         cursor = self._connection.cursor()
-        with (self._transaction()):
+        with self._transaction():
             if self.__pending_writes:
                 try:
                     while self.__pending_types:
