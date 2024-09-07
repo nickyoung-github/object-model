@@ -1,6 +1,6 @@
 from __future__ import annotations as __annotations
 
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, replace
 from functools import cached_property, lru_cache
 from hashlib import sha3_512
 from pydantic import ConfigDict, TypeAdapter
@@ -25,7 +25,7 @@ class Base(metaclass=__BaseMetaClass):
     # Using pyantic stuff here is unfortunate. It's just quite painful to make some bits like json schema generation
     # and field aliasing work
 
-    # Pydantic has done some quite evil-looking things under the covers, which confuses the type checking on PyCharm
+    # Pydantic has done some quite evil-looking things under the covers, which confuses the type checking in PyCharm
 
     class Config:
         alias_generator = to_camel
@@ -60,6 +60,9 @@ class Base(metaclass=__BaseMetaClass):
     @classmethod
     def model_validate_json(cls, data: str | bytes) -> Base:
         return cls.__type_adaptor().validate_json(data)
+
+    def replace(self, /, **changes):
+        return replace(self, **changes)
 
 
 @dataclass(frozen=True)

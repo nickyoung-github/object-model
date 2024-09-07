@@ -58,3 +58,10 @@ def test_invalid_one_of_fails():
         assert True
     else:
         assert False
+
+
+def test_replace():
+    c = Container2(name="container", contents={"foo": 1}, rank=1)
+    c2 = c.replace(rank=2)
+
+    assert c2.rank == 2

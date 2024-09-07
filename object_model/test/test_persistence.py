@@ -50,7 +50,7 @@ def test_update():
     result = db.write(o)
     assert result.result()
 
-    oo = o.model_copy(update={"the_version": 1})
+    oo = o.replace(the_version=1)
 
     try:
         # Will fail as the object has not been read
@@ -68,7 +68,7 @@ def test_update():
 
     sleep(1)
 
-    oo = oo.model_copy(update={"the_version": 1})
+    oo = oo.replace(the_version=1)
     assert oo != o
 
     result = db.write(oo)
@@ -85,7 +85,7 @@ def test_update():
     assert o_v2.effective_version == 2
 
     # Now update v1
-    o_v11 = o_v1.model_copy(update={"the_version": 11})
+    o_v11 = o_v1.replace(the_version=11)
     result = db.write(o_v11, as_of_effective_time=True)
     assert result.result()
 

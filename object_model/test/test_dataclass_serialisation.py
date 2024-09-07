@@ -51,3 +51,11 @@ def test_camel_case():
 
     assert "theNested" in buffer
     assert "the_nested" not in buffer
+
+
+def test_replace():
+    c = Container2(name="container", contents={"foo": 1}, rank=1)
+    c2 = c.replace(rank=2)
+
+    assert c2.rank == 2
+

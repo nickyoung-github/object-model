@@ -40,6 +40,9 @@ class BaseModel(PydanticBaseModel, metaclass=__ModelMetaclass):
         fields = {*self.model_fields_set, "type_"}
         return self.model_dump_json(include=fields, by_alias=True, serialize_as_any=True).encode("UTF-8")
 
+    def replace(self, /, **changes):
+        return self.model_copy(update=changes)
+
 
 class PersistableModel(BaseModel, PersistableMixin):
     id: ClassVar[Id] = Id()
