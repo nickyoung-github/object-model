@@ -3,12 +3,10 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 import datetime as dt
-from importlib import import_module
 from orjson import dumps, loads
-from pydantic import TypeAdapter, ValidationError
 from typing import Any
 
-from ..typing import _one_of
+from ..json import loads
 
 
 def type_name(typ: type) -> str:
@@ -49,7 +47,6 @@ class Id:
 class PersistableMixin:
     def __init__(self):
         # This mixin is used by frozen dataclasses, which stop you setting private members (annoyingly)
-
         object.__setattr__(self, "_PersistableMixin__effective_time", dt.datetime.max)
         object.__setattr__(self, "_PersistableMixin__entry_time", dt.datetime.max)
         object.__setattr__(self, "_PersistableMixin__effective_version", 0)
@@ -77,16 +74,6 @@ class PersistableMixin:
         ...
 
     @property
-    @abstractmethod
-    def json_contents(self) -> bytes:
-        ...
-
-    @classmethod
-    @abstractmethod
-    def model_validate_json(cls, data: str | bytes) -> PersistableMixin:
-        ...
-
-    @property
     def object_type(self) -> str:
         return type_name(self.id[0])
 
@@ -96,30 +83,7 @@ class PersistableMixin:
 
     @classmethod
     def from_db_record(cls, record: DBRecord) -> PersistableMixin:
-        typ = _one_of(cls) if cls.__subclasses__() else cls
-
-        try:
-            ret = TypeAdapter(typ).validate_json(record.contents)
-        except ValidationError as e:
-            if "does not match any of the expected tags" not in str(e):
-                raise e
-
-            # We are attempting to deserialise a class that has not been imported, attempt to import dynamically
-            # This is slow
-
-            dict_contents = loads(record.contents)
-            typ = dict_contents.get("type_")
-            if typ is None:
-                raise RuntimeError(f"Failed to load {record.object_type} with id {record.object_id}: no type_ present")
-
-            # ToDo: Add a warning
-
-            module_name, _, typename = typ.rpartition(".")
-            module = import_module(module_name)
-            typ = getattr(module, typename)
-
-            ret = typ.validate_python(dict_contents)
-
+        ret: PersistableMixin = loads(record.contents)
         object.__setattr__(ret, "_PersistableMixin__effective_time", record.effective_time)
         object.__setattr__(ret, "_PersistableMixin__entry_time", record.entry_time)
         object.__setattr__(ret, "_PersistableMixin__effective_version", record.effective_version)

@@ -1,8 +1,9 @@
-import datetime as dt
+from datetime import date
 from pydantic import ValidationError
 from typing import Any
 
-from object_model import NamedPersistableModel, OneOf
+from object_model import NamedPersistableModel, Subclass
+from object_model.json import dumps, loads
 
 
 class Container(NamedPersistableModel):
@@ -14,33 +15,34 @@ class Container2(Container):
 
 
 class Nested(NamedPersistableModel):
-    container: OneOf[Container]
+    container: Subclass[Container]
 
 
 class Outer(NamedPersistableModel):
     the_nested: Nested
+    date: date
 
 
 class Container3(Container2):
-    date: dt.date
+    date: date
 
 
 def test_one_of():
     def test_container(container: Container):
-        o = Outer(name="outer", the_nested=Nested(name="nested", container=container))
+        o = Outer(name="outer", the_nested=Nested(name="nested", container=container), date=date(1970, 1, 1))
 
-        buffer = o.json_contents
-        o_from_json = Outer.model_validate_json(buffer)
+        buffer = dumps(o)
+        o_from_json = loads(buffer)
 
         assert o_from_json == o
 
-    test_container(Container(name="container", contents={"foo": 1}))
+    test_container(Container(name="container", contents={"foo": 1, "date": date(1970, 1, 1)}))
     test_container(Container2(name="container", contents={"foo": 1}, rank=1))
 
 
 def test_camel_case():
     c = Container2(name="container", contents={"foo": 1}, rank=1)
-    o = Outer(name="outer", the_nested=Nested(name="nested", container=c))
+    o = Outer(name="outer", the_nested=Nested(name="nested", container=c), date=date(1970, 1, 1))
 
     as_dict = o.model_dump(by_alias=True)
 
@@ -49,11 +51,11 @@ def test_camel_case():
 
 
 def test_invalid_one_of_fails():
-    c3 = Container3(name="container", contents={"foo": 1}, rank=2, date=dt.date.today())
+    c3 = Container3(name="container", contents={"foo": 1}, rank=2, date=date.today())
 
     try:
         # This should fail as Container3 was declared after Nested and the OneOf will not see it
-        Outer(name="outer", the_nested=Nested(name="nested", container=c3))
+        Outer(name="outer", the_nested=Nested(name="nested", container=c3), date=date.today())
     except ValidationError:
         assert True
     else:

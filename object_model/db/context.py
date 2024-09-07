@@ -7,6 +7,7 @@ from platform import uname
 from pwd import getpwuid
 
 from .persistable import DBRecord, PersistableMixin
+from ..json import dumps
 
 
 class DBResult:
@@ -55,7 +56,7 @@ class DBContext(ABC):
     def write(self, obj: PersistableMixin, as_of_effective_time: bool = False):
         record = DBRecord(obj.object_type,
                           obj.object_id,
-                          obj.json_contents,
+                          dumps(obj),
                           obj.effective_version if as_of_effective_time else obj.effective_version + 1,
                           obj.entry_version + 1 if as_of_effective_time else 1,
                           obj.effective_time if as_of_effective_time else dt.datetime.max,

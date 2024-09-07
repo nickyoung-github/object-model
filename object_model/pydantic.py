@@ -2,13 +2,14 @@ from __future__ import annotations as __annotations
 
 from functools import cached_property
 from hashlib import sha3_512
-from pydantic import BaseModel as PydanticBaseModel, ConfigDict, Field
+from pydantic import BaseModel as PydanticBaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from pydantic._internal._model_construction import ModelMetaclass as PydanticModelMetaclass, PydanticGenericMetadata
 from typing import Any, ClassVar, Literal
 
 
 from .db.persistable import Id, PersistableMixin, UseDerived
+from .json import TYPE_KEY, dumps
 
 
 class __ModelMetaclass(PydanticModelMetaclass):
@@ -26,19 +27,14 @@ class __ModelMetaclass(PydanticModelMetaclass):
             raise AttributeError("Cannot used reserved word 'type_' as a field name")
 
         type_ = f"{namespace['__module__']}.{cls_name}"
-        annotations["type_"] = Literal[type_]
-        namespace["type_"] = type_
+        annotations[TYPE_KEY] = Literal[type_]
+        namespace[TYPE_KEY] = type_
 
         return super().__new__(mcs, cls_name, bases, namespace, **kwargs)
 
 
 class BaseModel(PydanticBaseModel, metaclass=__ModelMetaclass):
     model_config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel)
-
-    @property
-    def json_contents(self) -> bytes:
-        fields = {*self.model_fields_set, "type_"}
-        return self.model_dump_json(include=fields, by_alias=True, serialize_as_any=True).encode("UTF-8")
 
     def replace(self, /, **changes):
         return self.model_copy(update=changes)
@@ -70,5 +66,4 @@ class ImmutableModel(PersistableModel):
     @cached_property
     def content_hash(self) -> bytes:
         # ToDo: Yes, I know this is wrong !!!
-        return sha3_512(self.json_contents).digest()
-
+        return sha3_512(dumps(self)).digest()

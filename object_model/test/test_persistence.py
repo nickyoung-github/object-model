@@ -2,7 +2,7 @@ import datetime as dt
 from time import sleep
 from typing import Any
 
-from object_model import NamedPersistableModel, OneOf
+from object_model import NamedPersistableModel, Subclass
 from object_model.db import DBFailedUpdateError, SqliteContext
 
 
@@ -15,7 +15,7 @@ class Container2(Container):
 
 
 class Nested(NamedPersistableModel):
-    container: OneOf[Container]
+    container: Subclass[Container]
 
 
 class Outer(NamedPersistableModel):
