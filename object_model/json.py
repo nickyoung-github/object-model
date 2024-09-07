@@ -23,10 +23,10 @@ class __TypeRegistry:
         return cls.__instance
 
     def __init__(self):
-        self.__types: dict[str, type] = {}
+        self.__types: dict[str, tuple[type, TypeAdapter]] = {}
 
-    def __call__(self, type_path: str) -> type:
-        typ = self.__types.get(type_path)
+    def __call__(self, type_path: str) -> tuple[type, TypeAdapter]:
+        typ, type_adaptor = self.__types.get(type_path, (None, None))
         if typ is None:
             try:
                 module_name, _, type_name = type_path.rpartition(".")
@@ -35,11 +35,14 @@ class __TypeRegistry:
                     import_module(module_name)
 
                 module = modules[module_name]
-                typ = self.__types[type_path] = getattr(module, type_name)
+                typ = getattr(module, type_name)
+                type_adaptor = TypeAdapter(typ) if is_dataclass(typ) else None
+
+                self.__types[type_path] = (typ, type_adaptor)
             except (ModuleNotFoundError, KeyError) as e:
                 raise TypeError(f"Attempt to dynamically load type {type_path} failed: {e}")
 
-        return typ
+        return typ, type_adaptor
 
 
 def __noop_alias_generator(data: str) -> str:
@@ -60,15 +63,15 @@ def dump(data: Any,
         return dump(asdict(data), alias_generator, True)
     elif isinstance(data, dict):
         is_object = TYPE_KEY in data
-        return {alias_generator(k) if is_object else dump(k, alias_generator, convert_builtins):
+        return {alias_generator(k) if is_object or isinstance(k, str) else dump(k, alias_generator, convert_builtins):
                 dump(v, alias_generator, convert_builtins or not is_object) for k, v in data.items()}
     elif isinstance(data, (list, tuple)):
-        return type(data)(dump(i) for i in data)
+        return type(data)(dump(i, alias_generator, convert_builtins) for i in data)
     elif convert_builtins:
-        if isinstance(data, date):
-            return {TYPE_KEY: "_d", "v": data.isoformat()}
-        elif isinstance(data, datetime):
+        if isinstance(data, datetime):
             return {TYPE_KEY: "_dt", "v": data.isoformat()}
+        elif isinstance(data, date):
+            return {TYPE_KEY: "_d", "v": data.isoformat()}
         elif isinstance(data, Decimal):
             return {TYPE_KEY: "_dc", "v": str(data)}
         else:
@@ -93,11 +96,18 @@ def load(data: Any, alias_generator: Callable[[str], str] = __noop_alias_generat
                 return Decimal(data["v"])
             else:
                 data = {alias_generator(k): load(v, alias_generator) for k, v in data.items()}
-                return typ(**data) if (typ := __TypeRegistry()(type_path)) else data
+                typ, type_adaptor = __TypeRegistry()(type_path)
+                if type_adaptor:
+                    return type_adaptor.validate_python(data)
+                elif typ:
+                    return typ(**data)
+                else:
+                    return data
         else:
-            return {load(k, alias_generator): load(v, alias_generator) for k, v in data.items()}
-    elif isinstance(data, list):
-        return [load(i, alias_generator) for i in data]
+            return {alias_generator(k) if isinstance(k, str) else load(k, alias_generator): load(v, alias_generator)
+                    for k, v in data.items()}
+    elif isinstance(data, (list, tuple)):
+        return type(data)(load(i, alias_generator) for i in data)
     else:
         return data
 
@@ -116,3 +126,5 @@ def schema(typ: type) -> dict[str, Any]:
             adaptor._init_core_attrs(rebuild_mocks=False)
 
         return adaptor.json_schema()
+    else:
+        raise RuntimeError("Can only handle pydantic models or dataclasses")

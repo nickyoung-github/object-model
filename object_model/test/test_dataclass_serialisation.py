@@ -25,6 +25,8 @@ class Nested(NamedPersistable):
 class Outer(NamedPersistable):
     the_nested: Nested
     date: date
+    list: list
+    tuple: tuple
 
 
 @dataclass(frozen=True)
@@ -34,7 +36,11 @@ class Container3(Container2):
 
 def test_one_of():
     def test_container(container: Container):
-        o = Outer(name="outer", the_nested=Nested(name="nested", container=container), date=date(1970, 1, 1))
+        o = Outer(name="outer",
+                  the_nested=Nested(name="nested", container=container),
+                  date=date(1970, 1, 1),
+                  list=[1, 3.0, date(1984, 1, 1)],
+                  tuple=(1, 3.0, date(1984, 1, 1)))
 
         buffer = dumps(o)
         o_from_json = loads(buffer)
@@ -46,8 +52,12 @@ def test_one_of():
 
 
 def test_camel_case():
-    c = Container2(name="container", contents={"foo": 1}, rank=1)
-    o = Outer(name="outer", the_nested=Nested(name="nested", container=c), date=date(1970, 1, 1))
+    c = Container2(name="container", contents={"foo": 1, "date": date.today()}, rank=1)
+    o = Outer(name="outer",
+              the_nested=Nested(name="nested", container=c),
+              date=date(1970, 1, 1),
+              list=[1, 3.0, date(1984, 1, 1)],
+              tuple=(1, 3.0, date(1984, 1, 1)))
 
     buffer = dumps(o).decode("UTF-8")
 
