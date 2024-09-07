@@ -7,7 +7,6 @@ from .sql import SqlDBContext
 
 class SqliteContext(SqlDBContext):
     _EXCEPTION_TYPE = SqliteError
-    _DEFAULT = "NULL"
 
     def __init__(self, filename: str | None = None):
         super().__init__()

@@ -13,6 +13,9 @@ class __BaseMetaClass(type):
     def __new__(cls, cls_name, bases, namespace, **kwargs):
         type_ = f"{namespace['__module__']}.{cls_name}"
         annotations = namespace.setdefault("__annotations__", {})
+        if TYPE_KEY in annotations:
+            raise AttributeError(f"Cannot used reserved word {TYPE_KEY} as a field name")
+
         annotations[TYPE_KEY] = Literal[type_]
         namespace[TYPE_KEY] = field(default_factory=lambda: type_, init=False)  # Needed to forcibly set in __init__
 

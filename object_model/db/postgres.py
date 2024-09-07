@@ -12,7 +12,6 @@ class PassthroughLoader(Loader):
 
 
 class PostgresContext(SqlDBContext):
-
     def __init__(self, params: str):
         super().__init__()
         set_json_loads(lambda j: j.decode("UTF-8"))

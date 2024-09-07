@@ -8,7 +8,6 @@ from .persistable import DBRecord, PersistableMixin
 
 class SqlDBContext(DBContext):
     _EXCEPTION_TYPE = Exception
-    _DEFAULT = "'DEFAULT'"
     _FIELDS = ("transaction_id", "effective_time", "entry_time", "object_type", "object_id", "effective_version",
                "entry_version", "contents")
 

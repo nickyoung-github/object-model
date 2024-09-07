@@ -23,8 +23,8 @@ class __ModelMetaclass(PydanticModelMetaclass):
         **kwargs: Any,
     ) -> type:
         annotations = namespace.setdefault("__annotations__", {})
-        if "type_" in annotations:
-            raise AttributeError("Cannot used reserved word 'type_' as a field name")
+        if TYPE_KEY in annotations:
+            raise AttributeError(f"Cannot used reserved word {TYPE_KEY} as a field name")
 
         type_ = f"{namespace['__module__']}.{cls_name}"
         annotations[TYPE_KEY] = Literal[type_]
