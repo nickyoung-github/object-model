@@ -1,24 +1,14 @@
 from __future__ import annotations as __annotations
 
-from dataclasses import dataclass, field, fields, replace
-from functools import cached_property
-from hashlib import sha3_512
-from typing import ClassVar, Literal
+from dataclasses import dataclass, fields, replace
+from typing import ClassVar
 
-from .db.persistable import Id, PersistableMixin, UseDerived
-from .json import TYPE_KEY, dumps
+from .db.persistable import Id, ImmutableMixin, PersistableMixin, UseDerived, add_type_to_namespace
 
 
 class __BaseMetaClass(type):
     def __new__(cls, cls_name, bases, namespace, **kwargs):
-        type_ = f"{namespace['__module__']}.{cls_name}"
-        annotations = namespace.setdefault("__annotations__", {})
-        if TYPE_KEY in annotations:
-            raise AttributeError(f"Cannot used reserved word {TYPE_KEY} as a field name")
-
-        annotations[TYPE_KEY] = Literal[type_]
-        namespace[TYPE_KEY] = field(default_factory=lambda: type_, init=False)  # Needed to forcibly set in __init__
-
+        add_type_to_namespace(cls_name, namespace)
         return super().__new__(cls, cls_name, bases, namespace, **kwargs)
 
 
@@ -45,15 +35,9 @@ class Persistable(Base, PersistableMixin):
 @dataclass(frozen=True)
 class NamedPersistable(Persistable):
     id: ClassVar[Id] = Id("name", typ=UseDerived)
-
     name: str
 
 
 @dataclass(frozen=True)
-class Immutable(Persistable):
+class Immutable(Persistable, ImmutableMixin):
     id: ClassVar[Id] = Id("content_hash")
-
-    @cached_property
-    def content_hash(self) -> bytes:
-        # ToDo: Yes, I know this is wrong !!!
-        return sha3_512(dumps(self)).digest()

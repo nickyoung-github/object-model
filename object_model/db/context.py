@@ -6,7 +6,7 @@ from os import geteuid
 from platform import uname
 from pwd import getpwuid
 
-from .persistable import DBRecord, PersistableMixin
+from .persistable import DBRecord, ImmutableMixin, PersistableMixin
 from ..json import dumps
 
 
@@ -54,6 +54,9 @@ class DBContext(ABC):
         ...
 
     def write(self, obj: PersistableMixin, as_of_effective_time: bool = False):
+        if (as_of_effective_time or obj.entry_version > 1) and isinstance(obj, ImmutableMixin):
+            raise RuntimeError(f"Cannot update immutable objects")
+
         record = DBRecord(obj.object_type,
                           obj.object_id,
                           dumps(obj),

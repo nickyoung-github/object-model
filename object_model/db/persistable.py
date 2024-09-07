@@ -1,16 +1,28 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import datetime as dt
+from functools import cached_property
+from hashlib import sha3_512
 from orjson import dumps, loads
-from typing import Any
+from typing import Any, Literal
 
-from ..json import loads
+from ..json import TYPE_KEY, loads
 
 
 def type_name(typ: type) -> str:
     return f"{typ.__module__}.{typ.__name__}"
+
+
+def add_type_to_namespace(cls_name: str, namespace: dict[str, Any]):
+    type_ = f"{namespace['__module__']}.{cls_name}"
+    annotations_ = namespace.setdefault("__annotations__", {})
+    if TYPE_KEY in annotations_:
+        raise AttributeError(f"Cannot used reserved word {TYPE_KEY} as a field name")
+
+    annotations_[TYPE_KEY] = Literal[type_]
+    namespace[TYPE_KEY] = field(default_factory=lambda: type_, init=False)  # Needed to forcibly set in __init__
 
 
 class UseDerived:
@@ -131,7 +143,13 @@ class PersistableMixin:
         else:
             # Check the id fields all exist in our type
             _, flds = cls.id
-            missing = [f for f in flds if f not in fields and f not in cls.__annotations__ and f not in cls.__dict__]
-
+            missing = [f for f in flds if f not in fields and f not in cls.__annotations__ and not hasattr(cls, f)]
             if missing:
                 raise TypeError(f"{missing} specified as id field(s) but not model field(s) of {cls}")
+
+
+class ImmutableMixin:
+    @cached_property
+    def content_hash(self) -> bytes:
+        # ToDo: Yes, I know this is wrong !!!
+        return sha3_512(dumps(self)).digest()

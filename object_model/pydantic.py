@@ -1,35 +1,17 @@
 from __future__ import annotations as __annotations
 
-from functools import cached_property
-from hashlib import sha3_512
 from pydantic import BaseModel as PydanticBaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
-from pydantic._internal._model_construction import ModelMetaclass as PydanticModelMetaclass, PydanticGenericMetadata
+from pydantic._internal._model_construction import ModelMetaclass as PydanticModelMetaclass
 from typing import Any, ClassVar, Literal
 
 
-from .db.persistable import Id, PersistableMixin, UseDerived
-from .json import TYPE_KEY, dumps
+from .db.persistable import Id, ImmutableMixin, PersistableMixin, UseDerived, add_type_to_namespace
 
 
 class __ModelMetaclass(PydanticModelMetaclass):
-    def __new__(
-        mcs,
-        cls_name: str,
-        bases: tuple[type[Any], ...],
-        namespace: dict[str, Any],
-        __pydantic_generic_metadata__: PydanticGenericMetadata | None = None,
-        __pydantic_reset_parent_namespace__: bool = True,
-        **kwargs: Any,
-    ) -> type:
-        annotations = namespace.setdefault("__annotations__", {})
-        if TYPE_KEY in annotations:
-            raise AttributeError(f"Cannot used reserved word {TYPE_KEY} as a field name")
-
-        type_ = f"{namespace['__module__']}.{cls_name}"
-        annotations[TYPE_KEY] = Literal[type_]
-        namespace[TYPE_KEY] = type_
-
+    def __new__(mcs, cls_name: str, bases: tuple[type[Any], ...], namespace: dict[str, Any], **kwargs):
+        add_type_to_namespace(cls_name, namespace)
         return super().__new__(mcs, cls_name, bases, namespace, **kwargs)
 
 
@@ -56,14 +38,8 @@ class PersistableModel(BaseModel, PersistableMixin):
 
 class NamedPersistableModel(PersistableModel):
     id: ClassVar[Id] = Id("name", typ=UseDerived)
-
     name: str
 
 
-class ImmutableModel(PersistableModel):
+class ImmutableModel(PersistableModel, ImmutableMixin):
     id: ClassVar[Id] = Id("content_hash")
-
-    @cached_property
-    def content_hash(self) -> bytes:
-        # ToDo: Yes, I know this is wrong !!!
-        return sha3_512(dumps(self)).digest()

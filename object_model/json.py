@@ -1,4 +1,4 @@
-from dataclasses import asdict, is_dataclass
+from dataclasses import MISSING, asdict, fields, is_dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from importlib import import_module
@@ -60,7 +60,13 @@ def dump(data: Any,
         return dump(data.model_dump(include={*data.model_fields_set, TYPE_KEY}, by_alias=True),
                     alias_generator, False)
     elif is_dataclass(data):
-        return dump(asdict(data), alias_generator, True)
+        # Remove fields whose value is their default
+        raw = asdict(data)
+        for fld in fields(data):
+            if fld.default is not MISSING and raw[fld.name] == fld.default:
+                raw.pop(fld.name)
+
+        return dump(raw, alias_generator, True)
     elif isinstance(data, dict):
         is_object = TYPE_KEY in data
         return {alias_generator(k) if is_object or isinstance(k, str) else dump(k, alias_generator, convert_builtins):
