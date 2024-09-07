@@ -46,6 +46,7 @@ class Base(metaclass=__BaseMetaClass):
 
     @property
     def json_contents(self) -> bytes:
+        # Sadly the much-preferable orjson.dumps does not support aliases
         return self.__type_adaptor().dump_json(self, by_alias=True)
 
     @classmethod
