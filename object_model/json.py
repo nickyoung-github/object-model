@@ -57,8 +57,7 @@ def dump(data: Any,
     # will handle the conversion
 
     if isinstance(data, BaseModel):
-        return dump(data.model_dump(include={*data.model_fields_set, TYPE_KEY}, by_alias=True),
-                    alias_generator, False)
+        return dump(data.model_dump(include={*data.model_fields_set, TYPE_KEY}, by_alias=True), alias_generator, False)
     elif is_dataclass(data):
         # Remove fields whose value is their default
         raw = asdict(data)
@@ -68,14 +67,15 @@ def dump(data: Any,
 
         return dump(raw, alias_generator, False)
     elif isinstance(data, dict):
-        is_object = TYPE_KEY in data
-        return {alias_generator(k) if is_object or isinstance(k, str) else
+        return {alias_generator(k) if isinstance(k, str) else
                 dump(k, alias_generator, convert_builtins or isinstance(k, (dict, list, tuple))):
                 dump(v, alias_generator, convert_builtins or isinstance(v, (dict, list, tuple)))
                 for k, v in data.items()}
     elif isinstance(data, (list, tuple)):
         return type(data)(dump(i, alias_generator, convert_builtins) for i in data)
     elif convert_builtins:
+        # Output as something we can distinguish
+
         if isinstance(data, datetime):
             return {TYPE_KEY: "_dt", "v": data.isoformat()}
         elif isinstance(data, date):
