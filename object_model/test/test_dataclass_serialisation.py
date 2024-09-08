@@ -3,7 +3,7 @@ from datetime import date
 from typing import Any
 
 from object_model import NamedPersistable, Subclass
-from object_model.json import dumps, loads
+from object_model.json import dump, dumps, loads
 
 
 @dataclass(frozen=True)

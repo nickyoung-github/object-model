@@ -44,17 +44,18 @@ class DBContext(ABC):
         self.__entered = False
         self.__username = getpwuid(geteuid()).pw_name
         self.__hostname = uname().node
-        self.__comment = None
+        self.__comment = ""
         self.__pending_reads: tuple[DBRecord, ...] = ()
         self.__pending_writes: tuple[DBRecord, ...] = ()
-        self.__read_results: dict[tuple[str, bytes], DBResult] = {}
-        self.__written_objects: dict[tuple[str, bytes], PersistableMixin] = {}
+        self.__read_results: dict[tuple[str, str], DBResult] = {}
+        self.__written_objects: dict[tuple[str, str], PersistableMixin] = {}
         self.__write_future: Future[bool] = Future()
 
-    def __enter__(self):
+    def __enter__(self, comment: str = ""):
         if self.__entered:
             raise RuntimeError("Fatal error: context re-entered")
 
+        self.__comment = comment
         self.__entered = True
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -81,13 +82,13 @@ class DBContext(ABC):
              **kwargs) -> DBResult:
         object_type, object_id = typ.make_id(*args, **kwargs)
 
-        record = DBRecord(object_type,
-                          object_id,
-                          bytes(),
-                          HEAD_VERSION,
-                          HEAD_VERSION,
-                          effective_time,
-                          entry_time)
+        record = DBRecord(object_type=object_type,
+                          object_id=object_id,
+                          contents="",
+                          effective_version=HEAD_VERSION,
+                          entry_version=HEAD_VERSION,
+                          effective_time=effective_time,
+                          entry_time=entry_time)
 
         self.__pending_reads += (record,)
         result = self.__read_results[(object_type, object_id)] = DBResult()
@@ -101,13 +102,13 @@ class DBContext(ABC):
         if (as_of_effective_time or obj.entry_version > 1) and isinstance(obj, ImmutableMixin):
             raise RuntimeError(f"Cannot update immutable objects")
 
-        record = DBRecord(obj.object_type,
-                          obj.object_id,
-                          dumps(obj),
-                          obj.effective_version if as_of_effective_time else obj.effective_version + 1,
-                          obj.entry_version + 1 if as_of_effective_time else 1,
-                          obj.effective_time if as_of_effective_time else dt.datetime.max,
-                          dt.datetime.max)
+        record = DBRecord(object_type=obj.object_type,
+                          object_id=obj.object_id,
+                          contents=dumps(obj).decode("UTF-8"),
+                          effective_version=obj.effective_version if as_of_effective_time else obj.effective_version+1,
+                          entry_version=obj.entry_version + 1 if as_of_effective_time else 1,
+                          effective_time=obj.effective_time if as_of_effective_time else dt.datetime.max,
+                          entry_time=dt.datetime.max)
 
         self.__pending_writes += (record,)
         self.__written_objects[(obj.object_type, obj.object_id)] = obj
@@ -141,17 +142,18 @@ class DBContext(ABC):
                     for record in records:
                         result = self.__read_results.pop((record.object_type, record.object_id))
                         result.set_result(PersistableMixin.from_db_record(record))
+
+                    while self.__read_results:
+                        _, result = self.__read_results.popitem()
+                        result.set_exception(DBNotFoundError())
             except Exception as e:
                 while self.__read_results:
                     _, result = self.__read_results.popitem()
                     result.set_exception(e)
-            finally:
-                while self.__read_results:
-                    _, result = self.__read_results.popitem()
-                    result.set_exception(DBNotFoundError())
         finally:
             self.__write_future = Future()
             self.__pending_reads = ()
             self.__pending_writes = ()
             self.__written_objects.clear()
             self.__read_results.clear()
+            self.__comment = ""

@@ -2,8 +2,8 @@ from datetime import date, datetime
 from sqlite3 import Error as SqliteError, IntegrityError, PARSE_DECLTYPES, connect, register_converter
 from tempfile import NamedTemporaryFile
 
-from . import DBError, DBDuplicateWriteError, DBFailedUpdateError, DBUnknownError
-from .sql import SqlDBContext
+from object_model.db import DBError, DBDuplicateWriteError, DBFailedUpdateError, DBUnknownError
+from object_model.db.sql.sql_context import SqlDBContext
 
 
 class SqliteContext(SqlDBContext):
@@ -18,7 +18,7 @@ class SqliteContext(SqlDBContext):
         register_converter("date", lambda x: date.fromisoformat(x.decode("UTF-8")))
         register_converter("datetime", lambda x: datetime.fromisoformat(x.decode("UTF-8")))
         register_converter("timestamp", lambda x: datetime.fromisoformat(x.decode("UTF-8")))
-        register_converter("jsonb", lambda x: x)
+        register_converter("jsonb", lambda x: x.decode("UTF-8"))
 
         self.__connection = connect(filename, detect_types=PARSE_DECLTYPES)
         self._create_schema()

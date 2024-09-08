@@ -1,14 +1,14 @@
 from psycopg import connect
 from psycopg.types.json import set_json_loads
 
-from . import DBError, DBUnknownError
-from .sql import SqlDBContext
+from object_model.db import DBError, DBUnknownError
+from object_model.db.sql.sql_context import SqlDBContext
 
 
 class PostgresContext(SqlDBContext):
     def __init__(self, params: str):
         super().__init__()
-        set_json_loads(lambda j: j)
+        set_json_loads(lambda j: j.decode("UTF-8"))
         self.__connection = connect(params)
         self._create_schema()
 

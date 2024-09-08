@@ -51,7 +51,7 @@ def __noop_alias_generator(data: str) -> str:
 
 def dump(data: Any,
          alias_generator: Callable[[str], str] = __noop_alias_generator,
-         convert_builtins: bool = False) -> Any:
+         convert_builtins: bool = True) -> Any:
     # Scan for members of untyped collections which either don't serialise or serialise amibiguously to JSON,
     # e.g. date, datetime, decimal. Assume that if such data is a direct attribute of an object, the object itself
     # will handle the conversion
@@ -66,11 +66,13 @@ def dump(data: Any,
             if fld.default is not MISSING and raw[fld.name] == fld.default:
                 raw.pop(fld.name)
 
-        return dump(raw, alias_generator, True)
+        return dump(raw, alias_generator, False)
     elif isinstance(data, dict):
         is_object = TYPE_KEY in data
-        return {alias_generator(k) if is_object or isinstance(k, str) else dump(k, alias_generator, convert_builtins):
-                dump(v, alias_generator, convert_builtins or not is_object) for k, v in data.items()}
+        return {alias_generator(k) if is_object or isinstance(k, str) else
+                dump(k, alias_generator, convert_builtins or isinstance(k, (dict, list, tuple))):
+                dump(v, alias_generator, convert_builtins or isinstance(v, (dict, list, tuple)))
+                for k, v in data.items()}
     elif isinstance(data, (list, tuple)):
         return type(data)(dump(i, alias_generator, convert_builtins) for i in data)
     elif convert_builtins:
@@ -118,7 +120,10 @@ def load(data: Any, alias_generator: Callable[[str], str] = __noop_alias_generat
         return data
 
 
-def loads(data: bytes, alias_generator=to_snake) -> Any:
+def loads(data: bytes | str, alias_generator=to_snake) -> Any:
+    if isinstance(data, str):
+        data = data.encode("UTF-8")
+
     return load(__loads(data), alias_generator)
 
 

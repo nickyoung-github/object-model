@@ -1,9 +1,9 @@
 from abc import abstractmethod
 from datetime import datetime
 
-from . import DBContext, DBError
-from .context import HEAD_VERSION
-from .persistable import DBRecord
+from object_model.db import DBContext, DBError
+from object_model.db.context import HEAD_VERSION
+from object_model.db.persistable import DBRecord
 
 
 class SqlDBContext(DBContext):
@@ -139,7 +139,7 @@ class SqlDBContext(DBContext):
                     effective_time = entry_time if effective_time == datetime.max else effective_time
                     statement = self.__insert_statement(transaction_id, entry_time, effective_time, write_records)
                     db_records = cursor.execute(statement).fetchall()
-                    records += tuple(DBRecord(**dict(zip(self._FIELDS[1:], dbr + (bytes(),)))) for dbr in db_records)
+                    records += tuple(DBRecord(**dict(zip(self._FIELDS[1:], dbr + ("",)))) for dbr in db_records)
         except self._EXCEPTION_TYPE as e:
             raise self._normalise_exception(e)
 
@@ -151,7 +151,7 @@ class SqlDBContext(DBContext):
                            object_type: str,
                            effective_time: datetime,
                            entry_time: datetime,
-                           ids: list[bytes]) -> str:
+                           ids: list[str]) -> str:
         return fr"""
             SELECT {", ".join(self._FIELDS[1:])} FROM (
                 SELECT *, rank() OVER (
@@ -160,7 +160,7 @@ class SqlDBContext(DBContext):
                 ) AS rank
                 FROM objects
                 WHERE object_type = '{object_type}'
-                AND object_id IN ('{"', '".join(i.decode('UTF-8') for i in ids)}')
+                AND object_id IN ('{"', '".join(ids)}')
                 AND effective_time <= '{effective_time}'
                 AND entry_time <= '{entry_time}'
             )

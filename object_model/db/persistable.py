@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import field
 import datetime as dt
 from functools import cached_property
 from hashlib import sha3_512
 from orjson import dumps, loads
+from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 from typing import Any, Literal
 
 from ..json import TYPE_KEY, loads
@@ -29,11 +31,12 @@ class UseDerived:
     ...
 
 
-@dataclass
-class DBRecord:
+class DBRecord(BaseModel):
+    model_config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel)
+
     object_type: str
-    object_id: bytes
-    contents: bytes
+    object_id: str
+    contents: str
     effective_version: int
     entry_version: int
     effective_time: dt.datetime
@@ -90,11 +93,11 @@ class PersistableMixin:
         return type_name(self.id[0])
 
     @property
-    def object_id(self) -> bytes:
-        return dumps(self.id[1])
+    def object_id(self) -> str:
+        return dumps(self.id[1]).decode("UTF-8")
 
     @classmethod
-    def make_id(cls, *args, **kwargs) -> tuple[str, bytes]:
+    def make_id(cls, *args, **kwargs) -> tuple[str, str]:
         id_type, id_fields = cls.id
         if id_type == UseDerived:
             raise RuntimeError("Can only be called on a persistable class")
@@ -109,7 +112,7 @@ class PersistableMixin:
             else:
                 raise ValueError(f"Missing ID field {name}")
 
-        return type_name(id_type), dumps(ret)
+        return type_name(id_type), dumps(ret).decode("UTF-8")
 
     @classmethod
     def _check_persistable_class(cls, persistable: type, fields: tuple[str, ...]):

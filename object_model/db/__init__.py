@@ -6,5 +6,5 @@ from .exception import (
     DBUnknownError
 )
 from .context import DBContext, DBResult
-from .postgres import PostgresContext
-from .sqlite import SqliteContext
+from .sql.postgres import PostgresContext
+from .sql.sqlite import SqliteContext
