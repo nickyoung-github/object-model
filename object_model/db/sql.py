@@ -1,29 +1,33 @@
 from abc import abstractmethod
-from concurrent.futures import Future
-import datetime as dt
+from datetime import datetime
 
-from . import DBContext, DBError, DBNotFoundError, DBResult
-from .persistable import DBRecord, PersistableMixin
+from . import DBContext, DBError
+from .context import HEAD_VERSION
+from .persistable import DBRecord
 
 
 class SqlDBContext(DBContext):
     _EXCEPTION_TYPE = Exception
-    _FIELDS = ("transaction_id", "effective_time", "entry_time", "object_type", "object_id", "effective_version",
-               "entry_version", "contents")
+    _FIELDS = ("transaction_id", "effective_time", "entry_time", "effective_version", "entry_version",
+               "object_type", "object_id", "contents")
 
     def __init__(self):
         super().__init__()
-        self.__pending_writes: dict[tuple[str, dt.datetime | None], list[DBRecord]] = {}
-        self.__pending_reads: dict[tuple[str, dt.datetime, dt.datetime], dict[bytes, Future]] = {}
-        self.__pending_types: set[str] = set()
         self.__existing_types: set[str] = set()
-        self.__min_entry_time: dt.datetime = dt.datetime.min
-        self.__write_future: Future = Future()
+        self.__min_entry_time: datetime = datetime.min
 
-    def __enter__(self):
-        super().__enter__()
-        if self.__pending_writes or self.__pending_reads:
-            raise RuntimeError("Uncommitted records exist from previous transaction")
+    @property
+    @abstractmethod
+    def _connection(self):
+        ...
+
+    @abstractmethod
+    def _transaction(self):
+        ...
+
+    @abstractmethod
+    def _normalise_exception(self, exception: Exception) -> DBError:
+        ...
 
     @classmethod
     def _utc_timestamp_sql(cls) -> str:
@@ -88,128 +92,116 @@ class SqlDBContext(DBContext):
                 ON objects (object_type, object_id, effective_time DESC, entry_time DESC)""",
         )
 
-    @property
-    @abstractmethod
-    def _connection(self):
-        ...
+    def _execute_reads(self, reads: tuple[DBRecord, ...]) -> tuple[DBRecord, ...]:
+        records = ()
+        grouped_reads = {}
 
-    @abstractmethod
-    def _transaction(self):
-        ...
-    
-    @abstractmethod
-    def _normalise_exception(self, exception: Exception) -> DBError:
-        ...
+        for r in reads:
+            grouped_reads.setdefault((r.object_type, r.effective_time, r.entry_time), []).append(r.object_id)
 
-    def _execute(self, username: str, hostname: str, comment: str | None):
-        cursor = self._connection.cursor()
-        with self._transaction():
-            if self.__pending_writes:
-                try:
-                    while self.__pending_types:
-                        typ = self.__pending_types.pop()
-                        self.__existing_types.add(typ)
-                        type_statement = self._add_type_sql(typ)
+        try:
+            cursor = self._connection.cursor()
 
-                        if type_statement:
-                            cursor.execute(type_statement)
+            while grouped_reads:
+                (object_type, effective_time, entry_time), ids = grouped_reads.popitem()
+                statement = self.__select_statement(object_type, effective_time, entry_time, ids)
+                db_records = cursor.execute(statement).fetchall()
+                records += tuple(DBRecord(**dict(zip(self._FIELDS[1:], dbr))) for dbr in db_records)
+        except self._EXCEPTION_TYPE as e:
+            raise self._normalise_exception(e)
 
-                    trans_id, entry_time =\
-                        cursor.execute(self._next_transaction_sql(username, hostname, comment)).fetchone()
-                    for statement in self.__insert_statements(trans_id, entry_time):
-                        cursor.execute(statement)
-                except self._EXCEPTION_TYPE as e:
-                    self.__write_future.set_exception(self._normalise_exception(e))
-                else:
-                    self.__write_future.set_result(True)
+        return records
 
-                self.__write_future = Future()
-            elif self.__pending_reads:
-                for statement, group, ids_futures in self.__select_statements():
-                    try:
-                        records = cursor.execute(statement).fetchall()
-                        for db_record in records:
-                            dict_record = dict(zip(self._FIELDS, db_record))
-                            dict_record["effective_time"] = dt.datetime.fromisoformat(dict_record["effective_time"])
-                            dict_record["entry_time"] = dt.datetime.fromisoformat(dict_record["entry_time"])
-                            dict_record["object_id"] = dict_record["object_id"].encode("UTF-8")
-                            dict_record["contents"] = dict_record["contents"].encode("UTF-8")
-                            dict_record.pop("transaction_id")
+    def _execute_writes(self,
+                        writes: tuple[DBRecord, ...],
+                        username: str,
+                        hostname: str,
+                        comment: str) -> tuple[DBRecord, ...]:
+        records = ()
+        added_types = []
+        grouped_writes = {}
 
-                            record = DBRecord(**dict_record)
+        for w in writes:
+            grouped_writes.setdefault((w.object_type, w.effective_time), []).append(w)
 
-                            if self.__min_entry_time is None:
-                                self.__min_entry_time = record.entry_time
+        try:
+            cursor = self._connection.cursor()
+            with self._transaction():
+                statement = self._next_transaction_sql(username, hostname, comment)
+                transaction_id, entry_time = cursor.execute(statement).fetchone()
 
-                            future = ids_futures.pop(record.object_id)
-                            future.set_result(record)
-                    except self._EXCEPTION_TYPE as e:
-                        while ids_futures:
-                            _, future = ids_futures.popitem()
-                            future.set_exception(e)
+                while grouped_writes:
+                    (object_type, effective_time), write_records = grouped_writes.popitem()
+                    if object_type not in self.__existing_types:
+                        # cursor.execute(self._add_type_sql(object_type))
+                        added_types.append(object_type)
 
-                    if not ids_futures:
-                        self.__pending_reads.pop(group)
+                    effective_time = entry_time if effective_time == datetime.max else effective_time
+                    statement = self.__insert_statement(transaction_id, entry_time, effective_time, write_records)
+                    db_records = cursor.execute(statement).fetchall()
+                    records += tuple(DBRecord(**dict(zip(self._FIELDS[1:], dbr + (bytes(),)))) for dbr in db_records)
+        except self._EXCEPTION_TYPE as e:
+            raise self._normalise_exception(e)
 
-                while self.__pending_reads:
-                    _, ids_futures = self.__pending_reads.popitem()
-                    for id_, future in ids_futures.items():
-                        future.set_exception(DBNotFoundError())
+        self.__existing_types.update(added_types)
 
-    def __insert_statements(self, transaction_id: int, entry_time: str) -> list[str]:
-        ret = []
-        while self.__pending_writes:
-            (typ, effective_time), records = self.__pending_writes.popitem()
-            effective_time = entry_time if effective_time == dt.datetime.max else\
-                effective_time.strftime("%Y-%m-%d %H:%M:%S.%f")
+        return records
 
-            statement = f"""
-                INSERT INTO objects ({", ".join(self._FIELDS)})
-                VALUES
-            """
+    def __select_statement(self,
+                           object_type: str,
+                           effective_time: datetime,
+                           entry_time: datetime,
+                           ids: list[bytes]) -> str:
+        return fr"""
+            SELECT {", ".join(self._FIELDS[1:])} FROM (
+                SELECT *, rank() OVER (
+                    PARTITION BY object_type, object_id
+                    ORDER BY effective_time DESC, entry_time DESC
+                ) AS rank
+                FROM objects
+                WHERE object_type = '{object_type}'
+                AND object_id IN ('{"', '".join(i.decode('UTF-8') for i in ids)}')
+                AND effective_time <= '{effective_time}'
+                AND entry_time <= '{entry_time}'
+            )
+            WHERE rank = 1
+        """
 
-            values_clause = []
-            for record in records:
-                values = [str(transaction_id), f"'{effective_time}'", f"'{entry_time}'"]
-                for field in self._FIELDS[3:]:
-                    value = getattr(record, field)
-                    db_value = "NULL" if value is None else \
-                        f"'{value.decode("UTF-8")}'" if isinstance(value, bytes) else\
-                        f"'{value}'" if isinstance(value, str) else\
-                        f"'{str(value)}'" if isinstance(value, dt.datetime) else\
-                        str(value)
+    def __insert_statement(self,
+                           transaction_id: int,
+                           entry_time: datetime,
+                           effective_time: datetime,
+                           records: list[DBRecord]) -> str:
+        statement = f"""
+            INSERT INTO objects ({", ".join(self._FIELDS)})
+            VALUES
+        """
 
-                    values.append(db_value)
+        values_clause = []
+        for record in records:
+            if record.effective_version == HEAD_VERSION:
+                effective_sql = f"(SELECT max(effective_version) + 1 FROM objects " +\
+                                f"WHERE object_type = {record.object_type} AND object_id = {record.object_id})"
+            else:
+                effective_sql = f"{record.effective_version}"
 
-                values_clause.append(f"""({", ".join(values)})""")
+            values = [str(transaction_id), f"'{effective_time}'", f"'{entry_time}'", effective_sql]
+            for field in self._FIELDS[4:]:
+                value = getattr(record, field)
+                db_value = "NULL" if value is None else \
+                    f"'{value}'" if isinstance(value, str) else \
+                    f"'{value.decode("UTF-8")}'" if isinstance(value, bytes) else \
+                    f"'{value.isoformat()}'" if isinstance(value, datetime) else\
+                    str(value)
 
-            statement += ",\n".join(values_clause)
-            ret.append(statement)
+                values.append(db_value)
 
-        return ret
+            values_clause.append(f"""({", ".join(values)})""")
 
-    def __select_statements(self) ->\
-            list[tuple[str, tuple[str, dt.datetime, dt.datetime], dict[bytes, Future[DBRecord]]]]:
-        ret = []
-        for group, ids_futures in self.__pending_reads.items():
-            object_type, effective_time, entry_time = group
-            statement = fr"""
-                SELECT {", ".join(self._FIELDS)} FROM (
-                    SELECT *, rank() OVER (
-                        PARTITION BY object_type, object_id
-                        ORDER BY effective_time DESC, entry_time DESC
-                    ) AS rank
-                    FROM objects
-                    WHERE object_type = '{object_type}'
-                    AND object_id IN ('{"', '".join(i.decode('UTF-8') for i in ids_futures.keys())}')
-                    AND effective_time <= '{effective_time}'
-                    AND entry_time <= '{entry_time}'
-                )
-                WHERE rank = 1
-            """
-            ret.append((statement, group, ids_futures))
+        statement += ",\n".join(values_clause)
+        statement += f"\n RETURNING {', '.join(self._FIELDS[1:7])}"
 
-        return ret
+        return statement
 
     def _create_schema(self):
         cursor = self._connection.cursor()
@@ -225,40 +217,6 @@ class SqlDBContext(DBContext):
 
             entry_time = cursor.execute(self._min_entry_time_sql()).fetchone()[0]
             if isinstance(entry_time, str):
-                entry_time = dt.datetime.fromisoformat(entry_time)
+                entry_time = datetime.fromisoformat(entry_time)
 
                 self.__min_entry_time = entry_time
-
-    def read(self,
-             typ: type[PersistableMixin],
-             *args,
-             effective_time: dt.datetime = dt.datetime.max,
-             entry_time: dt.datetime = dt.datetime.max,
-             **kwargs) -> DBResult:
-        if self.__pending_writes:
-            raise RuntimeError("Cannot read and write in the same transaction")
-
-        object_type, object_id = typ.make_id(*args, **kwargs)
-        future = Future[DBRecord]()
-
-        if object_type not in self.__existing_types:
-            future.set_exception(DBNotFoundError())
-        else:
-            self.__pending_reads.setdefault((object_type, effective_time, entry_time), {})[object_id] = future
-            self._execute_if_ready()
-
-        return DBResult(typ, future)
-
-    def _write(self, record: DBRecord) -> Future[bool]:
-        if self.__pending_reads:
-            raise RuntimeError("Cannot read and write in the same transaction")
-
-        if record.object_type not in self.__existing_types:
-            self.__pending_types.add(record.object_type)
-
-        self.__pending_writes.setdefault((record.object_type, record.effective_time), []).append(record)
-
-        ret = self.__write_future
-        self._execute_if_ready()
-
-        return ret

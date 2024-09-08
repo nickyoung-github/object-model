@@ -94,16 +94,6 @@ class PersistableMixin:
         return dumps(self.id[1])
 
     @classmethod
-    def from_db_record(cls, record: DBRecord) -> PersistableMixin:
-        ret: PersistableMixin = loads(record.contents)
-        object.__setattr__(ret, "_PersistableMixin__effective_time", record.effective_time)
-        object.__setattr__(ret, "_PersistableMixin__entry_time", record.entry_time)
-        object.__setattr__(ret, "_PersistableMixin__effective_version", record.effective_version)
-        object.__setattr__(ret, "_PersistableMixin__entry_version", record.entry_version)
-
-        return ret
-
-    @classmethod
     def make_id(cls, *args, **kwargs) -> tuple[str, bytes]:
         id_type, id_fields = cls.id
         if id_type == UseDerived:
@@ -146,6 +136,18 @@ class PersistableMixin:
             missing = [f for f in flds if f not in fields and f not in cls.__annotations__ and not hasattr(cls, f)]
             if missing:
                 raise TypeError(f"{missing} specified as id field(s) but not model field(s) of {cls}")
+
+    @classmethod
+    def from_db_record(cls, record: DBRecord) -> PersistableMixin:
+        ret: PersistableMixin = loads(record.contents)
+        ret.set_db_info(record)
+        return ret
+
+    def set_db_info(self, record: DBRecord):
+        object.__setattr__(self, "_PersistableMixin__effective_time", record.effective_time)
+        object.__setattr__(self, "_PersistableMixin__entry_time", record.entry_time)
+        object.__setattr__(self, "_PersistableMixin__effective_version", record.effective_version)
+        object.__setattr__(self, "_PersistableMixin__entry_version", record.entry_version)
 
 
 class ImmutableMixin:

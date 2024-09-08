@@ -1,4 +1,5 @@
-from sqlite3 import Error as SqliteError, IntegrityError, connect
+from datetime import date, datetime
+from sqlite3 import Error as SqliteError, IntegrityError, PARSE_DECLTYPES, connect, register_converter
 from tempfile import NamedTemporaryFile
 
 from . import DBError, DBDuplicateWriteError, DBFailedUpdateError, DBUnknownError
@@ -14,7 +15,12 @@ class SqliteContext(SqlDBContext):
             self.__file = NamedTemporaryFile()
             filename = self.__file.name
 
-        self.__connection = connect(filename)
+        register_converter("date", lambda x: date.fromisoformat(x.decode("UTF-8")))
+        register_converter("datetime", lambda x: datetime.fromisoformat(x.decode("UTF-8")))
+        register_converter("timestamp", lambda x: datetime.fromisoformat(x.decode("UTF-8")))
+        register_converter("jsonb", lambda x: x)
+
+        self.__connection = connect(filename, detect_types=PARSE_DECLTYPES)
         self._create_schema()
 
     @classmethod

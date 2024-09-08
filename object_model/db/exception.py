@@ -1,7 +1,7 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 
-class DBError(Exception, ABC):
+class DBError(Exception):
     def __init__(self, message: str = None):
         super().__init__(message or self.message())
 
