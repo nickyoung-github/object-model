@@ -190,7 +190,6 @@ class SqlDBContext(DBContext):
                 value = getattr(record, field)
                 db_value = "NULL" if value is None else \
                     f"'{value}'" if isinstance(value, str) else \
-                    f"'{value.decode("UTF-8")}'" if isinstance(value, bytes) else \
                     f"'{value.isoformat()}'" if isinstance(value, datetime) else\
                     str(value)
 
