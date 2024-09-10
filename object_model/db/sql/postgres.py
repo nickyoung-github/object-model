@@ -14,11 +14,23 @@ class PostgresContext(SqlDBContext):
 
     @classmethod
     def _add_type_sql(cls, typ: str) -> str | None:
-        return fr"""
-            """
+        return fr"""CREATE TABLE IF NOT EXISTS "{typ}"
+                    PARTITION OF objects
+                    FOR VALUES IN ('{typ}')"""
+
+    @classmethod
+    def _get_types_sql(cls) -> str:
+        return r"""SELECT c.relname
+                   FROM   pg_catalog.pg_inherits i, pg_class c
+                   WHERE  c.oid = inhrelid::regclass
+                   AND    i.inhparent = 'objects'::regclass"""
 
     def _normalise_exception(self, exception: Exception) -> DBError:
         return DBUnknownError(exception)
+
+    @classmethod
+    def _objects_sql(cls) -> str:
+        return super()._objects_sql() + " PARTITION BY LIST (object_type)"
 
     @property
     def _connection(self):

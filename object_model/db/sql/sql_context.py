@@ -104,8 +104,8 @@ class SqlDBContext(DBContext):
 
             while grouped_reads:
                 (object_type, effective_time, entry_time), ids = grouped_reads.popitem()
-                statement = self.__select_statement(object_type, effective_time, entry_time, ids)
-                db_records = cursor.execute(statement).fetchall()
+                read_sql = self.__select_statement(object_type, effective_time, entry_time, ids)
+                db_records = cursor.execute(read_sql).fetchall()
                 records += tuple(DBRecord(**dict(zip(self._FIELDS[1:], dbr))) for dbr in db_records)
         except self._EXCEPTION_TYPE as e:
             raise self._normalise_exception(e)
@@ -118,7 +118,6 @@ class SqlDBContext(DBContext):
                         hostname: str,
                         comment: str) -> tuple[DBRecord, ...]:
         records = ()
-        added_types = []
         grouped_writes = {}
 
         for w in writes:
@@ -132,18 +131,16 @@ class SqlDBContext(DBContext):
 
                 while grouped_writes:
                     (object_type, effective_time), write_records = grouped_writes.popitem()
-                    if object_type not in self.__existing_types:
-                        # cursor.execute(self._add_type_sql(object_type))
-                        added_types.append(object_type)
+                    if object_type not in self.__existing_types and (type_sql := self._add_type_sql(object_type)):
+                        cursor.execute(type_sql)
+                        self.__existing_types.add(object_type)
 
                     effective_time = entry_time if effective_time == datetime.max else effective_time
-                    statement = self.__insert_statement(transaction_id, entry_time, effective_time, write_records)
-                    db_records = cursor.execute(statement).fetchall()
+                    insert_sql = self.__insert_statement(transaction_id, entry_time, effective_time, write_records)
+                    db_records = cursor.execute(insert_sql).fetchall()
                     records += tuple(DBRecord(**dict(zip(self._FIELDS[1:], dbr + ("",)))) for dbr in db_records)
         except self._EXCEPTION_TYPE as e:
             raise self._normalise_exception(e)
-
-        self.__existing_types.update(added_types)
 
         return records
 
@@ -211,11 +208,5 @@ class SqlDBContext(DBContext):
             for statement in self._index_sql():
                 cursor.execute(statement)
 
-            type_results = cursor.execute(self._get_types_sql()).fetchall()
-            self.__existing_types.update(r[0] for r in type_results)
-
-            entry_time = cursor.execute(self._min_entry_time_sql()).fetchone()[0]
-            if isinstance(entry_time, str):
-                entry_time = datetime.fromisoformat(entry_time)
-
-                self.__min_entry_time = entry_time
+            self.__existing_types.update(r[0] for r in cursor.execute(self._get_types_sql()).fetchall())
+            self.__min_entry_time = cursor.execute(self._min_entry_time_sql()).fetchone()[0]
