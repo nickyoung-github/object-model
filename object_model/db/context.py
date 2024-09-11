@@ -80,9 +80,10 @@ class DBContext(ABC):
              effective_time: dt.datetime = dt.datetime.max,
              entry_time: dt.datetime = dt.datetime.max,
              **kwargs) -> DBResult:
-        object_type, object_id = typ.make_id(*args, **kwargs)
+        object_id_type, object_id = typ.make_id(*args, **kwargs)
 
-        record = DBRecord(object_type=object_type,
+        record = DBRecord(object_type="",
+                          object_id_type=object_id_type,
                           object_id=object_id,
                           contents="",
                           effective_version=HEAD_VERSION,
@@ -91,7 +92,7 @@ class DBContext(ABC):
                           entry_time=entry_time)
 
         self.__pending_reads += (record,)
-        result = self.__read_results[(object_type, object_id)] = DBResult()
+        result = self.__read_results[(object_id_type, object_id)] = DBResult()
 
         if not self.__entered:
             self._execute()
@@ -103,15 +104,16 @@ class DBContext(ABC):
             raise RuntimeError(f"Cannot update immutable objects")
 
         record = DBRecord(object_type=obj.object_type,
+                          object_id_type=obj.object_id_type,
                           object_id=obj.object_id,
-                          contents=dumps(obj).decode("UTF-8"),
+                          contents=dumps(obj),
                           effective_version=obj.effective_version if as_of_effective_time else obj.effective_version+1,
                           entry_version=obj.entry_version + 1 if as_of_effective_time else 1,
                           effective_time=obj.effective_time if as_of_effective_time else dt.datetime.max,
                           entry_time=dt.datetime.max)
 
         self.__pending_writes += (record,)
-        self.__written_objects[(obj.object_type, obj.object_id)] = obj
+        self.__written_objects[(obj.object_id_type, obj.object_id)] = obj
 
         ret = self.__write_future
         if not self.__entered:
@@ -125,7 +127,7 @@ class DBContext(ABC):
                 records = self._execute_writes(self.__pending_writes, self.__username, self.__hostname, self.__comment)
 
                 for record in records:
-                    obj = self.__written_objects.pop((record.object_type, record.object_id))
+                    obj = self.__written_objects.pop((record.object_id_type, record.object_id))
                     obj.set_db_info(record)
 
                 if self.__written_objects:
@@ -140,7 +142,7 @@ class DBContext(ABC):
                     records = self._execute_reads(self.__pending_reads)
 
                     for record in records:
-                        result = self.__read_results.pop((record.object_type, record.object_id))
+                        result = self.__read_results.pop((record.object_id_type, record.object_id))
                         result.set_result(PersistableMixin.from_db_record(record))
 
                     while self.__read_results:

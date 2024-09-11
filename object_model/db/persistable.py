@@ -1,30 +1,19 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from dataclasses import field
-import datetime as dt
+from datetime import datetime
 from functools import cached_property
 from hashlib import sha3_512
 from orjson import dumps, loads
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
-from typing import Any, Literal
 
-from ..json import TYPE_KEY, loads
+from ..descriptors import Id
+from ..json import loads
 
 
 def type_name(typ: type) -> str:
     return f"{typ.__module__}.{typ.__name__}"
-
-
-def add_type_to_namespace(cls_name: str, namespace: dict[str, Any]):
-    type_ = f"{namespace['__module__']}.{cls_name}"
-    annotations_ = namespace.setdefault("__annotations__", {})
-    if TYPE_KEY in annotations_:
-        raise AttributeError(f"Cannot used reserved word {TYPE_KEY} as a field name")
-
-    annotations_[TYPE_KEY] = Literal[type_]
-    namespace[TYPE_KEY] = field(default_factory=lambda: type_, init=False)  # Needed to forcibly set in __init__
 
 
 class UseDerived:
@@ -35,44 +24,29 @@ class DBRecord(BaseModel):
     model_config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel)
 
     object_type: str
+    object_id_type: str
     object_id: str
     contents: str
     effective_version: int
     entry_version: int
-    effective_time: dt.datetime
-    entry_time: dt.datetime
-
-
-class Id:
-    def __init__(self, *args, typ=None):
-        self.__fields = args
-        self.__type = typ
-
-    def __get__(self, obj, objtype=None) -> tuple[type, tuple[Any, ...]]:
-        if obj is None:
-            return self.__type, self.__fields
-
-        return self.__type, tuple(getattr(obj, f) for f in self.__fields)
-
-    def __set_name__(self, owner, name):
-        if not self.__type:
-            self.__type = owner
+    effective_time: datetime
+    entry_time: datetime
 
 
 class PersistableMixin:
     def __init__(self):
         # This mixin is used by frozen dataclasses, which stop you setting private members (annoyingly)
-        object.__setattr__(self, "_PersistableMixin__effective_time", dt.datetime.max)
-        object.__setattr__(self, "_PersistableMixin__entry_time", dt.datetime.max)
+        object.__setattr__(self, "_PersistableMixin__effective_time", datetime.max)
+        object.__setattr__(self, "_PersistableMixin__entry_time", datetime.max)
         object.__setattr__(self, "_PersistableMixin__effective_version", 0)
         object.__setattr__(self, "_PersistableMixin__entry_version", 0)
 
     @property
-    def effective_time(self) -> dt.datetime:
+    def effective_time(self) -> datetime:
         return self.__effective_time
 
     @property
-    def entry_time(self) -> dt.datetime:
+    def entry_time(self) -> datetime:
         return self.__entry_time
 
     @property
@@ -90,6 +64,10 @@ class PersistableMixin:
 
     @property
     def object_type(self) -> str:
+        return type_name(type(self))
+
+    @property
+    def object_id_type(self) -> str:
         return type_name(self.id[0])
 
     @property

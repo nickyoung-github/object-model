@@ -1,13 +1,12 @@
-import datetime as dt
+from datetime import date
 from time import sleep
-from typing import Any
 
 from object_model import NamedPersistableModel, Subclass
-from object_model.db import DBFailedUpdateError, SqliteContext
+from object_model.db import SqliteContext
 
 
 class Container(NamedPersistableModel):
-    contents: dict[str, Any]
+    contents: dict[str, date | str | float | int]
 
 
 class Container2(Container):
@@ -25,7 +24,7 @@ class Outer(NamedPersistableModel):
 
 class Container3(Container2):
     # Deliberately declared after the OneOf declaration in Nested
-    date: dt.date
+    date: date
 
 
 def test_roundtrip():
@@ -82,7 +81,7 @@ def test_update():
 
 
 def test_load_via_base():
-    c3 = Container3(name="container3", contents={"foo": 1}, rank=2, date=dt.date.today())
+    c3 = Container3(name="container3", contents={"foo": 1}, rank=2, date=date.today())
     db = SqliteContext()
 
     assert db.write(c3).result()

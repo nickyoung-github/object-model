@@ -1,9 +1,14 @@
 from __future__ import annotations as __annotations
 
-from dataclasses import dataclass, fields, replace
+from dataclasses import dataclass, fields, is_dataclass, replace
+from pydantic import BaseModel
+from pydantic.alias_generators import to_camel
 from typing import ClassVar
 
-from .db.persistable import Id, ImmutableMixin, PersistableMixin, UseDerived, add_type_to_namespace
+from .db.persistable import ImmutableMixin, PersistableMixin, UseDerived
+from .descriptors import Id
+from .replace import ReplaceMixin
+from ._type_checking import add_type_to_namespace
 
 
 class __BaseMetaClass(type):
@@ -13,8 +18,18 @@ class __BaseMetaClass(type):
 
 
 @dataclass(frozen=True)
-class Base(metaclass=__BaseMetaClass):
-    def replace(self, /, **changes):
+class Base(ReplaceMixin, metaclass=__BaseMetaClass):
+    class Config:
+        alias_generator = to_camel
+
+    def __getattribute__(self, item):
+        ret = super().__getattribute__(item)
+        if isinstance(ret, ReplaceMixin):
+            self._post_getattribute(item, ret)
+
+        return ret
+
+    def _replace(self, /, **changes):
         return replace(self, **changes)
 
 

@@ -9,7 +9,7 @@ from object_model.db.persistable import DBRecord
 class SqlDBContext(DBContext):
     _EXCEPTION_TYPE = Exception
     _FIELDS = ("transaction_id", "effective_time", "entry_time", "effective_version", "entry_version",
-               "object_type", "object_id", "contents")
+               "object_id_type", "object_id", "contents", "object_type")
 
     def __init__(self):
         super().__init__()
@@ -62,7 +62,7 @@ class SqlDBContext(DBContext):
 
     @classmethod
     def _get_types_sql(cls) -> str:
-        return """SELECT DISTINCT object_type from objects"""
+        return """SELECT DISTINCT object_id_type from objects"""
 
     @classmethod
     def _min_entry_time_sql(cls) -> str:
@@ -77,11 +77,12 @@ class SqlDBContext(DBContext):
                 effective_version   bigint     NOT NULL,
                 entry_version       bigint     NOT NULL,
                 transaction_id      bigint     NOT NULL, 
-                object_type         varchar    NOT NULL,
+                object_ID_type      varchar    NOT NULL,
                 object_id           jsonb      NOT NULL,
+                object_type         varchar    NOT NULL,
                 contents            jsonb      NOT NULL,
 
-                UNIQUE (object_type, object_id, effective_version, entry_version)
+                UNIQUE (object_id_type, object_id, effective_version, entry_version)
             )
     """
 
@@ -89,7 +90,7 @@ class SqlDBContext(DBContext):
     def _index_sql(cls) -> tuple[str, ...]:
         return (
             r"""CREATE UNIQUE INDEX IF NOT EXISTS id_time_idx
-                ON objects (object_type, object_id, effective_time DESC, entry_time DESC)""",
+                ON objects (object_id_type, object_id, effective_time DESC, entry_time DESC)""",
         )
 
     def _execute_reads(self, reads: tuple[DBRecord, ...]) -> tuple[DBRecord, ...]:
@@ -97,14 +98,14 @@ class SqlDBContext(DBContext):
         grouped_reads = {}
 
         for r in reads:
-            grouped_reads.setdefault((r.object_type, r.effective_time, r.entry_time), []).append(r.object_id)
+            grouped_reads.setdefault((r.object_id_type, r.effective_time, r.entry_time), []).append(r.object_id)
 
         try:
             cursor = self._connection.cursor()
 
             while grouped_reads:
-                (object_type, effective_time, entry_time), ids = grouped_reads.popitem()
-                read_sql = self.__select_statement(object_type, effective_time, entry_time, ids)
+                (object_id_type, effective_time, entry_time), ids = grouped_reads.popitem()
+                read_sql = self.__select_statement(object_id_type, effective_time, entry_time, ids)
                 db_records = cursor.execute(read_sql).fetchall()
                 records += tuple(DBRecord(**dict(zip(self._FIELDS[1:], dbr))) for dbr in db_records)
         except self._EXCEPTION_TYPE as e:
@@ -121,7 +122,7 @@ class SqlDBContext(DBContext):
         grouped_writes = {}
 
         for w in writes:
-            grouped_writes.setdefault((w.object_type, w.effective_time), []).append(w)
+            grouped_writes.setdefault((w.object_id_type, w.effective_time), []).append(w)
 
         try:
             cursor = self._connection.cursor()
@@ -130,10 +131,10 @@ class SqlDBContext(DBContext):
                 transaction_id, entry_time = cursor.execute(statement).fetchone()
 
                 while grouped_writes:
-                    (object_type, effective_time), write_records = grouped_writes.popitem()
-                    if object_type not in self.__existing_types and (type_sql := self._add_type_sql(object_type)):
+                    (object_id_type, effective_time), write_records = grouped_writes.popitem()
+                    if object_id_type not in self.__existing_types and (type_sql := self._add_type_sql(object_id_type)):
                         cursor.execute(type_sql)
-                        self.__existing_types.add(object_type)
+                        self.__existing_types.add(object_id_type)
 
                     effective_time = entry_time if effective_time == datetime.max else effective_time
                     insert_sql = self.__insert_statement(transaction_id, entry_time, effective_time, write_records)
@@ -145,18 +146,18 @@ class SqlDBContext(DBContext):
         return records
 
     def __select_statement(self,
-                           object_type: str,
+                           object_id_type: str,
                            effective_time: datetime,
                            entry_time: datetime,
                            ids: list[str]) -> str:
         return fr"""
             SELECT {", ".join(self._FIELDS[1:])} FROM (
                 SELECT *, rank() OVER (
-                    PARTITION BY object_type, object_id
+                    PARTITION BY object_id_type, object_id
                     ORDER BY effective_time DESC, entry_time DESC
                 ) AS rank
                 FROM objects
-                WHERE object_type = '{object_type}'
+                WHERE object_id_type = '{object_id_type}'
                 AND object_id IN ('{"', '".join(ids)}')
                 AND effective_time <= '{effective_time}'
                 AND entry_time <= '{entry_time}'
@@ -178,7 +179,7 @@ class SqlDBContext(DBContext):
         for record in records:
             if record.effective_version == HEAD_VERSION:
                 effective_sql = f"(SELECT max(effective_version) + 1 FROM objects " +\
-                                f"WHERE object_type = {record.object_type} AND object_id = {record.object_id})"
+                                f"WHERE object_id_type = {record.object_id_type} AND object_id = {record.object_id})"
             else:
                 effective_sql = f"{record.effective_version}"
 
@@ -195,7 +196,7 @@ class SqlDBContext(DBContext):
             values_clause.append(f"""({", ".join(values)})""")
 
         statement += ",\n".join(values_clause)
-        statement += f"\n RETURNING {', '.join(self._FIELDS[1:7])}"
+        statement += f"\n RETURNING {', '.join(self._FIELDS[1:8])}"
 
         return statement
 

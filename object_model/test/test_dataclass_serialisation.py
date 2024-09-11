@@ -1,14 +1,13 @@
 from dataclasses import dataclass
 from datetime import date
-from typing import Any
 
 from object_model import NamedPersistable, Subclass
-from object_model.json import dump, dumps, loads
+from object_model.json import dumps, loads
 
 
 @dataclass(frozen=True)
 class Container(NamedPersistable):
-    contents: dict[str, Any]
+    contents: dict[str, date | str | float | int]
 
 
 @dataclass(frozen=True)
@@ -25,8 +24,8 @@ class Nested(NamedPersistable):
 class Outer(NamedPersistable):
     the_nested: Nested
     date: date
-    list: list
-    tuple: tuple
+    list: list[date | str | float | int]
+    tuple: tuple[date | str | float | int, ...]
 
 
 @dataclass(frozen=True)

@@ -1,12 +1,16 @@
 from __future__ import annotations as __annotations
 
+from dataclasses import is_dataclass
 from pydantic import BaseModel as PydanticBaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from pydantic._internal._model_construction import ModelMetaclass as PydanticModelMetaclass
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 
 
-from .db.persistable import Id, ImmutableMixin, PersistableMixin, UseDerived, add_type_to_namespace
+from .db.persistable import ImmutableMixin, PersistableMixin, UseDerived
+from .descriptors import Id
+from .replace import ReplaceMixin
+from ._type_checking import add_type_to_namespace
 
 
 class __ModelMetaclass(PydanticModelMetaclass):
@@ -15,10 +19,20 @@ class __ModelMetaclass(PydanticModelMetaclass):
         return super().__new__(mcs, cls_name, bases, namespace, **kwargs)
 
 
-class BaseModel(PydanticBaseModel, metaclass=__ModelMetaclass):
+_call_stack = []
+
+
+class BaseModel(PydanticBaseModel, ReplaceMixin, metaclass=__ModelMetaclass):
     model_config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel)
 
-    def replace(self, /, **changes):
+    def __getattribute__(self, item):
+        ret = super().__getattribute__(item)
+        if isinstance(ret, BaseModel) or is_dataclass(ret):
+            self._post_getattribute(item, ret)
+
+        return ret
+
+    def _replace(self, /, **changes):
         return self.model_copy(update=changes)
 
 

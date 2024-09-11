@@ -1,13 +1,12 @@
 from datetime import date
 from pydantic import ValidationError
-from typing import Any
 
 from object_model import NamedPersistableModel, Subclass
 from object_model.json import dumps, loads
 
 
 class Container(NamedPersistableModel):
-    contents: dict[str, Any]
+    contents: dict[str, date | str | float | int]
 
 
 class Container2(Container):
@@ -20,7 +19,7 @@ class Nested(NamedPersistableModel):
 
 class Outer(NamedPersistableModel):
     the_nested: Nested
-    date: date
+    date: date | str
 
 
 class Container3(Container2):

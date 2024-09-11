@@ -1,12 +1,10 @@
-from dataclasses import MISSING, asdict, fields, is_dataclass
-from datetime import date, datetime
-from decimal import Decimal
+from dataclasses import MISSING, is_dataclass, fields
 from importlib import import_module
 from orjson import loads as __loads, dumps as __dumps
 from pydantic import BaseModel, ConfigDict, TypeAdapter
-from pydantic.alias_generators import to_camel, to_snake
+from pydantic.alias_generators import to_camel
 from sys import modules
-from typing import Any, Callable
+from typing import Any
 
 
 TYPE_KEY = "t_"
@@ -19,13 +17,12 @@ class __TypeRegistry:
         # Make this a singleton
         if cls.__instance is None:
             cls.__instance = super().__new__(cls, *args, **kwargs)
+            cls.__instance.__types: dict[str, type] = {}
+            cls.__instance.__type_adaptors: dict[type, TypeAdapter] = {}
 
         return cls.__instance
 
-    def __init__(self):
-        self.__types: dict[str, tuple[type, TypeAdapter]] = {}
-
-    def __call__(self, type_path: str) -> tuple[type, TypeAdapter]:
+    def __call__(self, type_path: str) -> type:
         typ, type_adaptor = self.__types.get(type_path, (None, None))
         if typ is None:
             try:
@@ -35,107 +32,80 @@ class __TypeRegistry:
                     import_module(module_name)
 
                 module = modules[module_name]
-                typ = getattr(module, type_name)
-                type_adaptor = TypeAdapter(typ) if is_dataclass(typ) else None
-
-                self.__types[type_path] = (typ, type_adaptor)
+                typ = self.__types[type_path] = getattr(module, type_name)
             except (ModuleNotFoundError, KeyError) as e:
                 raise TypeError(f"Attempt to dynamically load type {type_path} failed: {e}")
 
-        return typ, type_adaptor
+        return typ
+
+    def type_adaptor(self, typ: type) -> TypeAdapter | None:
+        if not is_dataclass(typ):
+            return None
+
+        type_adaptor = self.__type_adaptors.get(typ)
+        if not type_adaptor:
+            type_adaptor = self.__type_adaptors[typ] = TypeAdapter(typ)
+            type_adaptor._config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel)
+            with type_adaptor._with_frame_depth(1):
+                type_adaptor._init_core_attrs(rebuild_mocks=False)
+
+        return type_adaptor
 
 
-def __noop_alias_generator(data: str) -> str:
-    return data
-
-
-def dump(data: Any,
-         alias_generator: Callable[[str], str] = __noop_alias_generator,
-         convert_builtins: bool = True) -> Any:
-    # Scan for members of untyped collections which either don't serialise or serialise amibiguously to JSON,
-    # e.g. date, datetime, decimal. Assume that if such data is a direct attribute of an object, the object itself
-    # will handle the conversion
-
+def dump(data: Any) -> dict[str, Any]:
     if isinstance(data, BaseModel):
-        return dump(data.model_dump(include={*data.model_fields_set, TYPE_KEY}, by_alias=True), alias_generator, False)
+        return data.model_dump(include={*data.model_fields_set, TYPE_KEY}, by_alias=True)
     elif is_dataclass(data):
-        # Remove fields whose value is their default
-        raw = asdict(data)
-        for fld in fields(data):
-            if fld.default is not MISSING and raw[fld.name] == fld.default:
-                raw.pop(fld.name)
-
-        return dump(raw, alias_generator, False)
-    elif isinstance(data, dict):
-        return {alias_generator(k) if isinstance(k, str) else
-                dump(k, alias_generator, convert_builtins or isinstance(k, (dict, list, tuple))):
-                dump(v, alias_generator, convert_builtins or isinstance(v, (dict, list, tuple)))
-                for k, v in data.items()}
-    elif isinstance(data, (list, tuple)):
-        return type(data)(dump(i, alias_generator, convert_builtins) for i in data)
-    elif convert_builtins:
-        # Output as something we can distinguish
-
-        if isinstance(data, datetime):
-            return {TYPE_KEY: "_dt", "v": data.isoformat()}
-        elif isinstance(data, date):
-            return {TYPE_KEY: "_d", "v": data.isoformat()}
-        elif isinstance(data, Decimal):
-            return {TYPE_KEY: "_dc", "v": str(data)}
-        else:
-            return data
+        flds = [f.name for f in fields(data) if f.default is MISSING or f.default != getattr(data, f.name)]
+        return __TypeRegistry().type_adaptor(type(data)).dump_python(data, include=flds)
     else:
-        return data
+        raise RuntimeError("Unsupported type")
 
 
-def dumps(data: Any, alias_generator=to_camel) -> bytes:
-    return __dumps(dump(data, alias_generator))
-
-
-def load(data: Any, alias_generator: Callable[[str], str] = __noop_alias_generator) -> Any:
-    if isinstance(data, dict):
-        type_path = data.pop(TYPE_KEY, None)
-        if type_path:
-            if type_path == "_d":
-                return date.fromisoformat(data["v"])
-            elif type_path == "_dt":
-                return datetime.fromisoformat(data["v"])
-            elif type_path == "_dc":
-                return Decimal(data["v"])
-            else:
-                data = {alias_generator(k): load(v, alias_generator) for k, v in data.items()}
-                typ, type_adaptor = __TypeRegistry()(type_path)
-                if type_adaptor:
-                    return type_adaptor.validate_python(data)
-                elif typ:
-                    return typ(**data)
-                else:
-                    return data
-        else:
-            return {alias_generator(k) if isinstance(k, str) else load(k, alias_generator): load(v, alias_generator)
-                    for k, v in data.items()}
-    elif isinstance(data, (list, tuple)):
-        return type(data)(load(i, alias_generator) for i in data)
+def dumps(data: Any) -> str:
+    if isinstance(data, BaseModel):
+        return data.model_dump_json(include={*data.model_fields_set, TYPE_KEY}, by_alias=True)
+    elif is_dataclass(data):
+        flds = [f.name for f in fields(data) if f.default is MISSING or f.default != getattr(data, f.name)]
+        return __TypeRegistry().type_adaptor(type(data)).dump_json(data, by_alias=True, include=flds)
     else:
-        return data
+        return __dumps(data).decode("UTF-8")
 
 
-def loads(data: bytes | str, alias_generator=to_snake) -> Any:
-    if isinstance(data, str):
-        data = data.encode("UTF-8")
+def load(data: dict[str, Any]) -> Any:
+    type_registry = __TypeRegistry()
 
-    return load(__loads(data), alias_generator)
+    type_path = data.get(TYPE_KEY)
+    if not type_path:
+        raise RuntimeError("No type in data")
+
+    typ = type_registry(type_path)
+    if not typ:
+        raise RuntimeError(f"Cannot resolve type for {type_path}")
+
+    return typ.model_validate(data) if issubclass(typ, BaseModel) else \
+        type_registry.type_adaptor(typ).validate_python(data)
+
+
+def loads(data: bytes | str, type_path: str | None = None) -> Any:
+    type_registry = __TypeRegistry()
+
+    if type_path is None:
+        # SUPER inefficient
+        type_path = __loads(data.encode("UTF-8") if isinstance(data, str) else data).get(TYPE_KEY)
+        if not type_path:
+            raise RuntimeError("type_path not specified or found in the json")
+
+    typ = type_registry(type_path)
+    if not typ:
+        raise RuntimeError(f"Cannot resolve type for {type_path}")
+
+    return typ.model_validate_json(data) if issubclass(typ, BaseModel) else\
+        type_registry.type_adaptor(typ).validate_json(data)
 
 
 def schema(typ: type) -> dict[str, Any]:
     if issubclass(typ, BaseModel):
         return typ.model_json_schema(by_alias=True)
-    elif is_dataclass(typ):
-        adaptor = TypeAdapter(typ)
-        adaptor._config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel)
-        with adaptor._with_frame_depth(1):
-            adaptor._init_core_attrs(rebuild_mocks=False)
 
-        return adaptor.json_schema()
-    else:
-        raise RuntimeError("Can only handle pydantic models or dataclasses")
+    return __TypeRegistry().type_adaptor(typ).json_schema()
