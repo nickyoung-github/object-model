@@ -4,13 +4,14 @@ from dataclasses import is_dataclass
 from pydantic import BaseModel as PydanticBaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from pydantic._internal._model_construction import ModelMetaclass as PydanticModelMetaclass
+from sys import getrefcount
 from typing import Any, ClassVar
 
 
 from .db.persistable import ImmutableMixin, PersistableMixin, UseDerived
 from .descriptors import Id
 from .replace import ReplaceMixin
-from ._type_checking import add_type_to_namespace
+from .type_checking import add_type_to_namespace
 
 
 class __ModelMetaclass(PydanticModelMetaclass):
@@ -27,8 +28,13 @@ class BaseModel(PydanticBaseModel, ReplaceMixin, metaclass=__ModelMetaclass):
 
     def __getattribute__(self, item):
         ret = super().__getattribute__(item)
-        if isinstance(ret, BaseModel) or is_dataclass(ret):
-            self._post_getattribute(item, ret)
+
+        if isinstance(ret, ReplaceMixin) or is_dataclass(ret):
+            child_refcount = getrefcount(ret) - 1
+            parent_refcount = getrefcount(self) - 2
+
+            self._post_getattribute(item, ret, parent_refcount, child_refcount)
+            print()
 
         return ret
 

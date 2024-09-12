@@ -1,4 +1,6 @@
 from abc import abstractmethod
+from sys import getrefcount
+from weakref import ref
 
 
 class _CallStack:
@@ -12,46 +14,38 @@ class _CallStack:
 
         return cls.__instance
 
-    def __bool__(self):
-        return bool(self.__stack)
+    def __last_entry_matches(self, value, refcount) -> bool:
+        if self.__stack:
+            return self.__stack[-1][2]() is value and self.__stack[-1][3] == refcount
 
-    def push(self, parent, attr, child):
-        value = (parent, attr, child)
-        stack = self.__stack
-        if len(stack) == 0 or stack[-1] != value:
+        return False
+
+    def push(self, parent, attr, child, parent_refcount, child_refcount):
+        if not self.__last_entry_matches(parent, parent_refcount):
+            self.__stack.clear()
+
+        value = (ref(parent), attr, ref(child), child_refcount)
+        if (not self.__stack) or self.__stack[-1] != value:
+            # The debugger can cause some crazy stuff to happen
             self.__stack.append(value)
 
-        arse = True
+    def copy_root(self, changed_object, refcount, **changes):
+        ret = changed_object._replace(**changes)
 
-    def pop(self) -> tuple:
-        return self.__stack.pop()
+        if self.__last_entry_matches(changed_object, refcount):
+            while self.__stack:
+                parent, attr, _, _ = self.__stack.pop()
+                ret = parent()._replace(**{attr: ret})
 
-    def peek(self):
-        return self.__stack[-1][2] if self.__stack else None
-
-    def clear(self):
-        self.__stack = []
+        return ret
 
 
 class ReplaceMixin:
-    def _post_getattribute(self, item, value):
-        call_stack = _CallStack()
-
-        if call_stack and call_stack.peek() is not self:
-            call_stack.clear()
-
-        call_stack.push(self, item, value)
+    def _post_getattribute(self, attr, value, parent_refcount, child_refcount):
+        _CallStack().push(self, attr, value, parent_refcount, child_refcount)
 
     def replace(self, /, **changes):
-        ret = self._replace(**changes)
-        call_stack = _CallStack()
-
-        if call_stack and call_stack.peek() is self:
-            while call_stack:
-                parent, attr, _ = call_stack.pop()
-                ret = parent._replace(**{attr: ret})
-
-        return ret
+        return _CallStack().copy_root(self, getrefcount(self) - 2, **changes)
 
     @abstractmethod
     def _replace(self, /, **changes):

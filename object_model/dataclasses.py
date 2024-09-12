@@ -1,14 +1,14 @@
 from __future__ import annotations as __annotations
 
-from dataclasses import dataclass, fields, is_dataclass, replace
-from pydantic import BaseModel
+from dataclasses import dataclass, fields, replace
 from pydantic.alias_generators import to_camel
+from sys import getrefcount
 from typing import ClassVar
 
 from .db.persistable import ImmutableMixin, PersistableMixin, UseDerived
 from .descriptors import Id
 from .replace import ReplaceMixin
-from ._type_checking import add_type_to_namespace
+from .type_checking import add_type_to_namespace
 
 
 class __BaseMetaClass(type):
@@ -25,7 +25,9 @@ class Base(ReplaceMixin, metaclass=__BaseMetaClass):
     def __getattribute__(self, item):
         ret = super().__getattribute__(item)
         if isinstance(ret, ReplaceMixin):
-            self._post_getattribute(item, ret)
+            child_refcount = getrefcount(ret) - 1
+            parent_refcount = getrefcount(self) - 2
+            self._post_getattribute(item, ret, parent_refcount, child_refcount)
 
         return ret
 
