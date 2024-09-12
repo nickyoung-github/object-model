@@ -20,9 +20,6 @@ class __ModelMetaclass(PydanticModelMetaclass):
         return super().__new__(mcs, cls_name, bases, namespace, **kwargs)
 
 
-_call_stack = []
-
-
 class BaseModel(PydanticBaseModel, ReplaceMixin, metaclass=__ModelMetaclass):
     model_config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel)
 
@@ -34,7 +31,6 @@ class BaseModel(PydanticBaseModel, ReplaceMixin, metaclass=__ModelMetaclass):
             parent_refcount = getrefcount(self) - 2
 
             self._post_getattribute(item, ret, parent_refcount, child_refcount)
-            print()
 
         return ret
 

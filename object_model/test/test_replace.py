@@ -24,7 +24,6 @@ class Outer(BaseModel):
 def test_replace():
     outer = Outer(middle=Middle1(middle=Middle2(inner=Inner(my_int=123, my_string="123"))))
 
-    print("START")
     outer_new = outer.middle.middle.inner.replace(my_int=321, my_string="321")
     assert isinstance(outer_new, Outer)
 

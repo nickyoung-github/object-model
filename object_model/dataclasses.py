@@ -27,6 +27,7 @@ class Base(ReplaceMixin, metaclass=__BaseMetaClass):
         if isinstance(ret, ReplaceMixin):
             child_refcount = getrefcount(ret) - 1
             parent_refcount = getrefcount(self) - 2
+
             self._post_getattribute(item, ret, parent_refcount, child_refcount)
 
         return ret

@@ -23,7 +23,7 @@ class __TypeRegistry:
         return cls.__instance
 
     def __call__(self, type_path: str) -> type:
-        typ, type_adaptor = self.__types.get(type_path, (None, None))
+        typ = self.__types.get(type_path)
         if typ is None:
             try:
                 module_name, _, type_name = type_path.rpartition(".")
