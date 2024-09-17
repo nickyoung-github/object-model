@@ -1,8 +1,8 @@
 from __future__ import annotations as __annotations
 
 from dataclasses import dataclass, fields, replace
+from inspect import currentframe, getframeinfo
 from pydantic.alias_generators import to_camel
-from sys import getrefcount
 from typing import ClassVar
 
 from .db.persistable import ImmutableMixin, PersistableMixin, UseDerived
@@ -26,10 +26,8 @@ class Base(ReplaceMixin, metaclass=__BaseMetaClass):
         # TODO: This is probably a bad idea and may be retired
         ret = super().__getattribute__(item)
         if isinstance(ret, ReplaceMixin):
-            child_refcount = getrefcount(ret) - 1
-            parent_refcount = getrefcount(self) - 2
-
-            self._post_getattribute(item, ret, parent_refcount, child_refcount)
+            caller = getframeinfo(currentframe().f_back)
+            self._post_getattribute(item, ret, (caller.positions.end_lineno, caller.filename))
 
         return ret
 

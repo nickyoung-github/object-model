@@ -1,6 +1,5 @@
 from abc import abstractmethod
-from sys import getrefcount
-from weakref import ref
+from inspect import currentframe, getframeinfo
 
 
 class _CallStack:
@@ -14,38 +13,41 @@ class _CallStack:
 
         return cls.__instance
 
-    def __last_entry_matches(self, value, refcount) -> bool:
+    def __last_entry_matches(self, value, location) -> bool:
         if self.__stack:
-            return self.__stack[-1][2]() is value and self.__stack[-1][3] == refcount
+            return self.__stack[-1][2] is value and self.__stack[-1][3] == location
 
         return False
 
-    def push(self, parent, attr, child, parent_refcount, child_refcount):
-        if not self.__last_entry_matches(parent, parent_refcount):
+    def push(self, parent, attr, child, location):
+        if not self.__last_entry_matches(parent, location):
             self.__stack.clear()
 
-        value = (ref(parent), attr, ref(child), child_refcount)
+        value = (parent, attr, child, location)
         if (not self.__stack) or self.__stack[-1] != value:
-            # The debugger can cause some crazy stuff to happen
             self.__stack.append(value)
 
-    def copy_root(self, changed_object, refcount, **changes):
-        ret = changed_object._replace(**changes)
-
-        if self.__last_entry_matches(changed_object, refcount):
+    def copy(self, changed_object, location, ret, copy_root):
+        if copy_root and self.__last_entry_matches(changed_object, location):
             while self.__stack:
                 parent, attr, _, _ = self.__stack.pop()
-                ret = parent()._replace(**{attr: ret})
+                ret = parent._replace(**{attr: ret})
+
+        self.__stack.clear()
 
         return ret
 
 
 class ReplaceMixin:
-    def _post_getattribute(self, attr, value, parent_refcount, child_refcount):
-        _CallStack().push(self, attr, value, parent_refcount, child_refcount)
+    def _post_getattribute(self, attr, value, location):
+        _CallStack().push(self, attr, value, location)
 
-    def replace(self, /, **changes):
-        return _CallStack().copy_root(self, getrefcount(self) - 2, **changes)
+    def replace(self, /, copy_root: bool = True, **changes):
+        caller = getframeinfo(currentframe().f_back)
+        return _CallStack().copy(self,
+                                 (caller.positions.end_lineno, caller.filename),
+                                 self._replace(**changes),
+                                 copy_root)
 
     @abstractmethod
     def _replace(self, /, **changes):

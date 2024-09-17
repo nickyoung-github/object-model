@@ -1,10 +1,9 @@
 from __future__ import annotations as __annotations
 
-from dataclasses import is_dataclass
+from inspect import currentframe, getframeinfo
 from pydantic import BaseModel as PydanticBaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from pydantic._internal._model_construction import ModelMetaclass as PydanticModelMetaclass
-from sys import getrefcount
 from typing import Any, ClassVar
 
 
@@ -27,11 +26,10 @@ class BaseModel(PydanticBaseModel, ReplaceMixin, metaclass=__ModelMetaclass):
         # TODO: This is probably a bad idea and may be retired
 
         ret = super().__getattribute__(item)
-        if isinstance(ret, ReplaceMixin):
-            child_refcount = getrefcount(ret) - 1
-            parent_refcount = getrefcount(self) - 2
 
-            self._post_getattribute(item, ret, parent_refcount, child_refcount)
+        if isinstance(ret, ReplaceMixin):
+            caller = getframeinfo(currentframe().f_back)
+            self._post_getattribute(item, ret, (caller.positions.end_lineno, caller.filename))
 
         return ret
 
