@@ -87,18 +87,22 @@ def load(data: dict[str, Any]) -> Any:
         type_registry.type_adaptor(typ).validate_python(data)
 
 
-def loads(data: bytes | str, type_path: str | None = None) -> Any:
+def loads(data: bytes | str, typ: type | str | None = None) -> Any:
     type_registry = __TypeRegistry()
 
-    if type_path is None:
-        # SUPER inefficient
-        type_path = __loads(data.encode("UTF-8") if isinstance(data, str) else data).get(TYPE_KEY)
-        if not type_path:
-            raise RuntimeError("type_path not specified or found in the json")
+    if typ is None or isinstance(typ, str):
+        if typ is None:
+            # SUPER inefficient
+            type_path = __loads(data.encode("UTF-8") if isinstance(data, str) else data).get(TYPE_KEY)
+            if not type_path:
+                raise RuntimeError("type_path not specified or found in the json")
+        else:
+            type_path = typ
 
-    typ = type_registry(type_path)
-    if not typ:
-        raise RuntimeError(f"Cannot resolve type for {type_path}")
+        typ = type_registry(type_path)
+
+        if not typ:
+            raise RuntimeError(f"Cannot resolve type for {type_path}")
 
     return typ.model_validate_json(data) if issubclass(typ, BaseModel) else\
         type_registry.type_adaptor(typ).validate_json(data)

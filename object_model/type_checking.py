@@ -52,9 +52,6 @@ def add_type_to_namespace(cls_name: str, namespace: dict[str, Any]):
     if TYPE_KEY in annotations_:
         raise AttributeError(f"Cannot used reserved word {TYPE_KEY} as a field name")
 
-    if cls_name == "Outer":
-        arse = True
-
     for name, typ in annotations_.items():
         annotations_[name] = check_type(name, typ)
 
