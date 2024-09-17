@@ -23,12 +23,10 @@ class _CallStack:
         if not self.__last_entry_matches(parent, location):
             self.__stack.clear()
 
-        value = (parent, attr, child, location)
-        if (not self.__stack) or self.__stack[-1] != value:
-            self.__stack.append(value)
+        self.__stack.append((parent, attr, child, location))
 
-    def copy(self, changed_object, location, ret, copy_root):
-        if copy_root and self.__last_entry_matches(changed_object, location):
+    def copy(self, target, location, ret, copy_root):
+        if copy_root and self.__last_entry_matches(target, location):
             while self.__stack:
                 parent, attr, _, _ = self.__stack.pop()
                 ret = parent._replace(**{attr: ret})
