@@ -54,9 +54,10 @@ class _SpecialForm:
         return self._getitem(self, parameters)
 
 
-def _one_of(param_typ: type):
+@_SpecialForm
+def Subclass(_cls, param_typ: type):
     if TYPE_KEY not in param_typ.__annotations__:
-        raise TypeError(f"Usage: OneOf[Type], where Type provides a {TYPE_KEY} Literal")
+        raise TypeError(f"Usage: Subclass[Type], where Type provides a {TYPE_KEY} Literal")
 
     subclasses = set()
     stack = [param_typ]
@@ -66,8 +67,3 @@ def _one_of(param_typ: type):
         stack.extend(subclass.__subclasses__())
 
     return Annotated[Union[tuple(subclasses)], Field(..., discriminator=TYPE_KEY)]
-
-
-@_SpecialForm
-def Subclass(_cls, param_typ: type):
-    return _one_of(param_typ)
