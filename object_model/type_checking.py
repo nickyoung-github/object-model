@@ -1,5 +1,6 @@
 from dataclasses import field, is_dataclass
 from datetime import date, datetime
+# from frozendict import frozendict
 from pydantic import BaseModel, Field
 from typing import Annotated, Any, Literal, Union, get_origin, get_args
 
@@ -26,8 +27,14 @@ def check_type(fld: str, typ: Any) -> Any:
             for arg in args:
                 check_type(fld, arg)
 
-            if origin is Union:
-                # Ro-order the args of unions so that e.g. datetime comes before str
+            if origin is set:
+                return frozenset[args]
+            elif origin is list:
+                return tuple[args + (...,)]
+            # elif origin is dict:
+            #     return frozendict[args]
+            elif origin is Union:
+                # Re-order the args of unions so that e.g. datetime comes before str
 
                 object_types = tuple(t for t in args if issubclass(t, BaseModel) or is_dataclass(t))
                 base_types = set(args).difference(object_types) if object_types else args

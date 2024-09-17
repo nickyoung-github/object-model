@@ -1,7 +1,8 @@
 from __future__ import annotations as __annotations
 
+from frozendict import frozendict
 from inspect import currentframe, getframeinfo
-from pydantic import BaseModel as PydanticBaseModel, ConfigDict
+from pydantic import BaseModel as PydanticBaseModel, ConfigDict, model_validator
 from pydantic.alias_generators import to_camel
 from pydantic._internal._model_construction import ModelMetaclass as PydanticModelMetaclass
 from typing import Any, ClassVar
@@ -21,6 +22,23 @@ class __ModelMetaclass(PydanticModelMetaclass):
 
 class BaseModel(PydanticBaseModel, ReplaceMixin, metaclass=__ModelMetaclass):
     model_config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel)
+
+    # @model_validator(mode="before")
+    # @classmethod
+    # def immutable_collections(cls, data: Any) -> Any:
+    #     if isinstance(data, dict):
+    #         updates = []
+    #         for key, value in data.items():
+    #             if isinstance(value, dict) and not isinstance(value, frozendict):
+    #                 updates.append((key, frozendict(value)))
+    #             elif isinstance(value, set) and not isinstance(value, frozenset):
+    #                 updates.append((key, frozenset(value)))
+    #             elif isinstance(value, list):
+    #                 updates.append((key, tuple(value)))
+    #
+    #         data.update(updates)
+    #
+    #     return data
 
     def __getattribute__(self, item):
         # TODO: This is probably a bad idea and may be retired
