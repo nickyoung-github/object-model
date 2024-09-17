@@ -24,6 +24,7 @@ class Base(ReplaceMixin, metaclass=__BaseMetaClass):
 
     def __getattribute__(self, item):
         # TODO: This is probably a bad idea and may be retired
+
         ret = super().__getattribute__(item)
         if isinstance(ret, ReplaceMixin):
             caller = getframeinfo(currentframe().f_back)
@@ -43,7 +44,7 @@ class Persistable(Base, PersistableMixin):
         if "__init_subclass__" in cls.__dict__:
             raise RuntimeError(f"Redefinition of __init_subclass__ by {cls} is not allowed")
 
-        cls._check_persistable_class(Persistable, tuple(f.name for f in fields(cls)))
+        cls._check_persistable_class(tuple(f.name for f in fields(cls)))
 
     def __post_init__(self):
         PersistableMixin.__init__(self)
