@@ -24,9 +24,10 @@ class BaseModel(PydanticBaseModel, ReplaceMixin, metaclass=__ModelMetaclass):
     model_config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel)
 
     def __getattribute__(self, item):
-        ret = super().__getattribute__(item)
+        # TODO: This is probably a bad idea and may be retired
 
-        if isinstance(ret, ReplaceMixin) or is_dataclass(ret):
+        ret = super().__getattribute__(item)
+        if isinstance(ret, ReplaceMixin):
             child_refcount = getrefcount(ret) - 1
             parent_refcount = getrefcount(self) - 2
 

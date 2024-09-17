@@ -23,6 +23,7 @@ class Base(ReplaceMixin, metaclass=__BaseMetaClass):
         alias_generator = to_camel
 
     def __getattribute__(self, item):
+        # TODO: This is probably a bad idea and may be retired
         ret = super().__getattribute__(item)
         if isinstance(ret, ReplaceMixin):
             child_refcount = getrefcount(ret) - 1
