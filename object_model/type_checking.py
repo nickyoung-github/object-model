@@ -1,10 +1,10 @@
 from dataclasses import field, is_dataclass
 from datetime import date, datetime
-# from frozendict import frozendict
 from pydantic import BaseModel, Field
-from typing import Annotated, Any, Literal, Union, get_origin, get_args
+from typing import Annotated, Any, Callable, Literal, Union, get_origin, get_args
 
 from .json import TYPE_KEY
+from .typing import FrozenDict
 
 
 __base_type_order = {datetime: -2, date: -1, int: -1}
@@ -14,7 +14,7 @@ def check_type(fld: str, typ: Any) -> Any:
     # Check that we have no non-serialisable or ambiguously serialisable types
     # Also, rewrite a couple of types to avoid common problems
 
-    if typ in (object, Any):
+    if typ in (object, Any, Callable):
         raise TypeError(f"{typ} is not a persistable type for {fld}")
     else:
         args = get_args(typ)
@@ -31,8 +31,8 @@ def check_type(fld: str, typ: Any) -> Any:
                 return frozenset[args]
             elif origin is list:
                 return tuple[args + (...,)]
-            # elif origin is dict:
-            #     return frozendict[args]
+            elif origin is dict:
+                return FrozenDict[args]
             elif origin is Union:
                 # Re-order the args of unions so that e.g. datetime comes before str
 
@@ -44,7 +44,7 @@ def check_type(fld: str, typ: Any) -> Any:
                 # classes, so we need
                 # Union[date, Annotated[Union[MyClass, MyOtherClass], Field(..., discriminator=TYPE_KEY)]
 
-                if object_types:
+                if len(object_types) > 1:
                     disriminated_union = Annotated[Union[object_types], Field(..., discriminator=TYPE_KEY)]
                     return Union[base_types + (disriminated_union,)] if base_types else disriminated_union
                 elif base_types:

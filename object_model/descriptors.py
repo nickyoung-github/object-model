@@ -1,6 +1,5 @@
-from __future__ import annotations
-
-from typing import Any
+from frozendict import frozendict
+from typing import Annotated, get_args, get_origin
 
 
 class Id:
@@ -8,7 +7,7 @@ class Id:
         self.__fields = args
         self.__type = typ
 
-    def __get__(self, obj, objtype=None) -> tuple[type, tuple[Any, ...]]:
+    def __get__(self, obj, objtype=None):
         if obj is None:
             return self.__type, self.__fields
 

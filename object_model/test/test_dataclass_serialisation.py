@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from datetime import date
+from typing import Any
 
-from object_model import NamedPersistable, Subclass
+from object_model import Base, NamedPersistable, Subclass
 from object_model.json import dumps, loads
 
 
@@ -24,7 +25,7 @@ class Nested(NamedPersistable):
 class Outer(NamedPersistable):
     the_nested: Nested
     date: date
-    list: list[date | str | float | int]
+    the_list: list[date | str | float | int]
     tuple: tuple[date | str | float | int, ...]
 
 
@@ -38,13 +39,16 @@ def test_one_of():
         o = Outer(name="outer",
                   the_nested=Nested(name="nested", container=container),
                   date=date(1970, 1, 1),
-                  list=[1, 3.0, date(1984, 1, 1)],
+                  the_list=[1, 3.0, date(1984, 1, 1)],
                   tuple=(1, 3.0, date(1984, 1, 1)))
 
         buffer = dumps(o)
         o_from_json = loads(buffer)
 
-        assert o_from_json == o
+        # We expect the collections to converted to immutable versions
+
+        assert o_from_json != o
+        assert o_from_json.the_list == tuple(o.the_list)
 
     test_container(Container(name="container", contents={"foo": 1, "date": date.today()}))
     test_container(Container2(name="container", contents={"foo": 1}, rank=1))
@@ -55,10 +59,10 @@ def test_camel_case():
     o = Outer(name="outer",
               the_nested=Nested(name="nested", container=c),
               date=date(1970, 1, 1),
-              list=[1, 3.0, date(1984, 1, 1)],
+              the_list=[1, 3.0, date(1984, 1, 1)],
               tuple=(1, 3.0, date(1984, 1, 1)))
 
-    buffer = dumps(o).decode("UTF-8")
+    buffer = dumps(o).decode("utf-8")
 
     assert "theNested" in buffer
     assert "the_nested" not in buffer
@@ -70,3 +74,22 @@ def test_replace():
 
     assert c2.rank == 2
 
+
+def test_unsupported_types():
+    try:
+        @dataclass(frozen=True)
+        class Bad(Base):
+            foo: Any
+
+        assert False
+    except TypeError:
+        assert True
+
+    try:
+        @dataclass(frozen=True)
+        class BadCollectiobn(Base):
+            foo: dict[str, Any]
+
+        assert False
+    except TypeError:
+        assert True

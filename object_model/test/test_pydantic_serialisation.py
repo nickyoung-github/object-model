@@ -1,7 +1,8 @@
 from datetime import date
 from pydantic import ValidationError
+from typing import Any
 
-from object_model import NamedPersistableModel, Subclass
+from object_model import BaseModel, NamedPersistableModel, Subclass
 from object_model.json import dumps, loads
 
 
@@ -66,3 +67,48 @@ def test_replace():
     c2 = c.replace(rank=2)
 
     assert c2.rank == 2
+
+
+def test_unsupported_types():
+    try:
+        class Bad(BaseModel):
+            foo: Any
+
+        assert False
+    except TypeError:
+        assert True
+
+    try:
+        class BadCollectiobn(BaseModel):
+            foo: dict[str, Any]
+
+        assert False
+    except TypeError:
+        assert True
+
+
+def test_immutable_collections():
+    class MyCollections(BaseModel):
+        my_list: list[str]
+        my_dict: dict[str, str]
+        my_set: set[str]
+
+    c = MyCollections(my_list=["a", "b"], my_dict={"a": "A", "b": "B"}, my_set={"a", "b"})
+
+    try:
+        c.my_list.append("c")
+        assert False
+    except AttributeError:
+        assert True
+
+    try:
+        c.my_dict["c"] = "C"
+        assert False
+    except TypeError:
+        assert True
+
+    try:
+        c.my_set.add("c")
+        assert False
+    except AttributeError:
+        assert True
