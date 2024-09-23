@@ -55,12 +55,12 @@ def check_type(fld: str, typ: Any) -> Any:
 
 def validate_types(cls_name: str, namespace: dict[str, Any]):
     type_path = f"{namespace['__module__']}.{cls_name}"
-    annotations_ = namespace.setdefault("__annotations__", {})
-    if TYPE_KEY in annotations_:
+    annotations = namespace.setdefault("__annotations__", {})
+    if TYPE_KEY in annotations:
         raise AttributeError(f"Cannot used reserved word {TYPE_KEY} as a field name")
 
-    for name, typ in annotations_.items():
-        annotations_[name] = check_type(name, typ)
+    for name, typ in annotations.items():
+        annotations[name] = check_type(name, typ)
 
-    annotations_[TYPE_KEY] = Literal[type_path]
+    annotations[TYPE_KEY] = Literal[type_path]
     namespace[TYPE_KEY] = field(default_factory=lambda: type_path, init=False)
