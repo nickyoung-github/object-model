@@ -23,7 +23,7 @@ class Outer(NamedPersistableModel):
 
 
 class Container3(Container2):
-    # Deliberately declared after the OneOf declaration in Nested
+    # Deliberately declared after the Subclass declaration in Nested
     date: date
 
 
