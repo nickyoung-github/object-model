@@ -53,7 +53,7 @@ def check_type(fld: str, typ: Any) -> Any:
         return typ
 
 
-def add_type_to_namespace(cls_name: str, namespace: dict[str, Any]):
+def validate_types(cls_name: str, namespace: dict[str, Any]):
     type_path = f"{namespace['__module__']}.{cls_name}"
     annotations_ = namespace.setdefault("__annotations__", {})
     if TYPE_KEY in annotations_:

@@ -1,19 +1,18 @@
 from __future__ import annotations as __annotations
 
 from dataclasses import dataclass, fields, replace
-from inspect import currentframe, getframeinfo
 from pydantic.alias_generators import to_camel
 from typing import ClassVar
 
 from .db.persistable import ImmutableMixin, PersistableMixin, UseDerived
 from .descriptors import Id
 from .replace import ReplaceMixin
-from .type_checking import add_type_to_namespace
+from .type_checking import validate_types
 
 
 class __BaseMetaClass(type):
     def __new__(cls, cls_name, bases, namespace, **kwargs):
-        add_type_to_namespace(cls_name, namespace)
+        validate_types(cls_name, namespace)
         return super().__new__(cls, cls_name, bases, namespace, **kwargs)
 
 
@@ -21,16 +20,6 @@ class __BaseMetaClass(type):
 class Base(ReplaceMixin, metaclass=__BaseMetaClass):
     class Config:
         alias_generator = to_camel
-
-    def __getattribute__(self, item):
-        # TODO: This is probably a bad idea and may be retired
-
-        ret = super().__getattribute__(item)
-        if isinstance(ret, ReplaceMixin):
-            caller = getframeinfo(currentframe().f_back)
-            self._post_getattribute(item, ret, (caller.positions.end_lineno, caller.filename))
-
-        return ret
 
     def _replace(self, /, **changes):
         return replace(self, **changes)

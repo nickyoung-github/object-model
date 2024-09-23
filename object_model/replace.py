@@ -37,8 +37,16 @@ class _CallStack:
 
 
 class ReplaceMixin:
-    def _post_getattribute(self, attr, value, location):
-        _CallStack().push(self, attr, value, location)
+    def __getattribute__(self, item):
+        # TODO: This is probably a bad idea and may be retired
+
+        ret = super().__getattribute__(item)
+
+        if isinstance(ret, ReplaceMixin):
+            caller = getframeinfo(currentframe().f_back)
+            _CallStack().push(self, item, ret, (caller.positions.end_lineno, caller.filename))
+
+        return ret
 
     def replace(self, /, copy_root: bool = True, **changes):
         caller = getframeinfo(currentframe().f_back)
