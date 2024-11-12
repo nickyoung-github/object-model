@@ -5,9 +5,9 @@ from pydantic.alias_generators import to_camel
 from typing import ClassVar
 
 from .db.persistable import ImmutableMixin, PersistableMixin, UseDerived
-from .descriptors import Id
-from .replace import ReplaceMixin
-from .type_checking import validate_types
+from ._descriptors import Id
+from ._replace import ReplaceMixin
+from ._type_checking import validate_types
 
 
 class __BaseMetaClass(type):

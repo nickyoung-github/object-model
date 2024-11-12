@@ -5,11 +5,13 @@ from datetime import datetime
 from functools import cached_property
 from hashlib import sha3_512
 from orjson import dumps, loads
-from pydantic import BaseModel, ConfigDict
+from pydantic import ConfigDict, Field
 from pydantic.alias_generators import to_camel
+from sqlmodel import SQLModel
+from uuid import UUID, uuid4
 
-from ..descriptors import Id
-from ..json import loads
+from .._descriptors import Id
+from .._json import loads
 
 
 def type_name(typ: type) -> str:
@@ -20,17 +22,19 @@ class UseDerived:
     ...
 
 
-class DBRecord(BaseModel):
+class ObjectRecord(SQLModel, table=True):
     model_config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel)
 
-    object_type: str
-    object_id_type: str
+    uuid: UUID = Field(default_factory=uuid4, primary_key=True)
     object_id: str
-    contents: str
-    effective_version: int
-    entry_version: int
+    object_id_type: str
+    object_type: str
+    object_contents: str
+    transaction_id: int
     effective_time: datetime
     entry_time: datetime
+    effective_version: int
+    entry_version: int
 
 
 class PersistableMixin:
@@ -119,12 +123,12 @@ class PersistableMixin:
                 raise TypeError(f"{missing} specified as id field(s) but not model field(s) of {cls}")
 
     @classmethod
-    def from_db_record(cls, record: DBRecord) -> PersistableMixin:
-        ret: PersistableMixin = loads(record.contents)
+    def from_db_record(cls, record: ObjectRecord) -> PersistableMixin:
+        ret: PersistableMixin = loads(record.object_contents, record.object_type)
         ret.set_db_info(record)
         return ret
 
-    def set_db_info(self, record: DBRecord):
+    def set_db_info(self, record: ObjectRecord):
         object.__setattr__(self, "_PersistableMixin__effective_time", record.effective_time)
         object.__setattr__(self, "_PersistableMixin__entry_time", record.entry_time)
         object.__setattr__(self, "_PersistableMixin__effective_version", record.effective_version)

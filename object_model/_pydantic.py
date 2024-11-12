@@ -7,9 +7,9 @@ from typing import Any, ClassVar
 
 
 from .db.persistable import ImmutableMixin, PersistableMixin, UseDerived
-from .descriptors import Id
-from .replace import ReplaceMixin
-from .type_checking import validate_types
+from ._descriptors import Id
+from ._replace import ReplaceMixin
+from ._type_checking import validate_types
 
 
 class __ModelMetaclass(PydanticModelMetaclass):

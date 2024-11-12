@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "onject-model"
+description = "Core Object Model"
+authors = [
+    {name = "Nick Young", email = "nick.young.github@gmail.com"}
+]
+readme = "README.md"
+license = {file = "LICENSE"}
+
+requires-python = ">=3.11"
+
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python 3",
+    "Operating System :: OS Independent"
+]
+
+dependencies = [
+    "dunamai",
+    "orjson",
+    "pydantic>2",
+    "requests",
+    "sqlalchemy"
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov"
+]
+
+[project.entry-points."object-store"]
+NamedPersistable = "_pydantic:NamedPersistable"

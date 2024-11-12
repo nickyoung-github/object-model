@@ -3,7 +3,7 @@ from pydantic import ValidationError
 from typing import Any
 
 from object_model import BaseModel, NamedPersistableModel, Subclass
-from object_model.json import dumps, loads
+from object_model._json import dumps, loads
 
 
 class Container(NamedPersistableModel):
@@ -32,7 +32,7 @@ def test_one_of():
         o = Outer(name="outer", the_nested=Nested(name="nested", container=container), date=date(1970, 1, 1))
 
         buffer = dumps(o)
-        o_from_json = loads(buffer)
+        o_from_json = loads(buffer, typ=Outer)
 
         assert o_from_json == o
 

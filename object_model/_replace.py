@@ -37,23 +37,24 @@ class _CallStack:
 
 
 class ReplaceMixin:
+
+    @property
+    def __location(self) -> tuple[int, str]:
+        caller = getframeinfo(currentframe().f_back.f_back)
+        return caller.positions.end_lineno, caller.filename
+
     def __getattribute__(self, item):
         # TODO: This is probably a bad idea and may be retired
 
         ret = super().__getattribute__(item)
 
         if isinstance(ret, ReplaceMixin):
-            caller = getframeinfo(currentframe().f_back)
-            _CallStack().push(self, item, ret, (caller.positions.end_lineno, caller.filename))
+            _CallStack().push(self, item, ret, self.__location)
 
         return ret
 
     def replace(self, /, copy_root: bool = True, **changes):
-        caller = getframeinfo(currentframe().f_back)
-        return _CallStack().copy(self,
-                                 (caller.positions.end_lineno, caller.filename),
-                                 self._replace(**changes),
-                                 copy_root)
+        return _CallStack().copy(self, self.__location, self._replace(**changes), copy_root)
 
     @abstractmethod
     def _replace(self, /, **changes):

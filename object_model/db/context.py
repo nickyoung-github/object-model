@@ -6,8 +6,8 @@ from platform import uname
 from pwd import getpwuid
 
 from .exception import DBNotFoundError
-from .persistable import DBRecord, ImmutableMixin, PersistableMixin
-from ..json import dumps
+from .persistable import ImmutableMixin, ObjectRecord, PersistableMixin
+from .._json import dumps
 
 
 HEAD_VERSION = -1
@@ -45,8 +45,8 @@ class DBContext(ABC):
         self.__username = getpwuid(geteuid()).pw_name
         self.__hostname = uname().node
         self.__comment = ""
-        self.__pending_reads: tuple[DBRecord, ...] = ()
-        self.__pending_writes: tuple[DBRecord, ...] = ()
+        self.__pending_reads: tuple[ObjectRecord, ...] = ()
+        self.__pending_writes: tuple[ObjectRecord, ...] = ()
         self.__read_results: dict[tuple[str, str], DBResult] = {}
         self.__written_objects: dict[tuple[str, str], PersistableMixin] = {}
         self.__write_future: Future[bool] = Future()
@@ -63,15 +63,15 @@ class DBContext(ABC):
         self._execute()
 
     @abstractmethod
-    def _execute_reads(self, reads: tuple[DBRecord, ...]) -> tuple[DBRecord, ...]:
+    def _execute_reads(self, reads: tuple[ObjectRecord, ...]) -> tuple[ObjectRecord, ...]:
         ...
 
     @abstractmethod
     def _execute_writes(self,
-                        writes: tuple[DBRecord, ...],
+                        writes: tuple[ObjectRecord, ...],
                         username: str,
                         hostname: str,
-                        comment: str) -> tuple[DBRecord, ...]:
+                        comment: str) -> tuple[ObjectRecord, ...]:
         ...
 
     def read(self,
@@ -82,14 +82,14 @@ class DBContext(ABC):
              **kwargs) -> DBResult:
         object_id_type, object_id = typ.make_id(*args, **kwargs)
 
-        record = DBRecord(object_type="",
-                          object_id_type=object_id_type,
-                          object_id=object_id,
-                          contents="",
-                          effective_version=HEAD_VERSION,
-                          entry_version=HEAD_VERSION,
-                          effective_time=effective_time,
-                          entry_time=entry_time)
+        record = ObjectRecord(object_type="",
+                              object_id_type=object_id_type,
+                              object_id=object_id,
+                              object_contents="",
+                              effective_version=HEAD_VERSION,
+                              entry_version=HEAD_VERSION,
+                              effective_time=effective_time,
+                              entry_time=entry_time)
 
         self.__pending_reads += (record,)
         result = self.__read_results[(object_id_type, object_id)] = DBResult()
@@ -103,14 +103,14 @@ class DBContext(ABC):
         if (as_of_effective_time or obj.entry_version > 1) and isinstance(obj, ImmutableMixin):
             raise RuntimeError(f"Cannot update immutable objects")
 
-        record = DBRecord(object_type=obj.object_type,
-                          object_id_type=obj.object_id_type,
-                          object_id=obj.object_id,
-                          contents=dumps(obj),
-                          effective_version=obj.effective_version if as_of_effective_time else obj.effective_version+1,
-                          entry_version=obj.entry_version + 1 if as_of_effective_time else 1,
-                          effective_time=obj.effective_time if as_of_effective_time else dt.datetime.max,
-                          entry_time=dt.datetime.max)
+        record = ObjectRecord(object_type=obj.object_type,
+                              object_id_type=obj.object_id_type,
+                              object_id=obj.object_id,
+                              object_contents=dumps(obj),
+                              effective_version=obj.effective_version if as_of_effective_time else obj.effective_version + 1,
+                              entry_version=obj.entry_version + 1 if as_of_effective_time else 1,
+                              effective_time=obj.effective_time if as_of_effective_time else dt.datetime.max,
+                              entry_time=dt.datetime.max)
 
         self.__pending_writes += (record,)
         self.__written_objects[(obj.object_id_type, obj.object_id)] = obj

@@ -2,31 +2,31 @@ from fastapi import FastAPI
 import uvicorn
 
 from object_model import BaseModel
-from object_model.db.persistable import DBRecord
-from object_model.db import SqliteContext
+from object_model.db.persistable import ObjectRecord
+from object_model.db.sql import SqlDBContext
 
 app = FastAPI()
-db = SqliteContext()
+db = SqlDBContext()
 
 
 class ReadRequest(BaseModel):
-    reads: tuple[DBRecord, ...]
+    reads: tuple[ObjectRecord, ...]
 
 
 class WriteRequest(BaseModel):
-    writes: tuple[DBRecord, ...]
+    writes: tuple[ObjectRecord, ...]
     username: str
     hostname: str
     comment: str
 
 
 @app.post("/read/")
-async def read(request: ReadRequest) -> tuple[DBRecord, ...]:
+async def read(request: ReadRequest) -> tuple[ObjectRecord, ...]:
     return db._execute_reads(request.reads)
 
 
 @app.post("/write/")
-async def write(request: WriteRequest) -> tuple[DBRecord, ...]:
+async def write(request: WriteRequest) -> tuple[ObjectRecord, ...]:
     return db._execute_writes(request.writes, request.username, request.hostname, request.comment)
 
 
