@@ -1,2 +1,0 @@
-[objects]
-Container = __main__.Container

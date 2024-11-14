@@ -12,7 +12,7 @@ from object_model.db.context import HEAD_VERSION
 from object_model.db.persistable import ObjectRecord
 
 
-class TransactionRecord(SQLModel, table=True):
+class Transactions(SQLModel, table=True):
     transaction_id: int = Field(default=None, primary_key=True, index=True)
     entry_time: datetime = Field(sa_column_kwargs={"server_default": text("CURRENT_TIMESTAMP")})
     username: str
@@ -21,11 +21,12 @@ class TransactionRecord(SQLModel, table=True):
 
 
 class SqlDBContext(DBContext):
-    def __init__(self, connection_string: str):
-        super().__init__()
+    def __init__(self, connection_string: str, allow_temporary_types: bool):
+        super().__init__(allow_temporary_types)
         self.__existing_types: set[str] = set()
         self.__min_entry_time: datetime = datetime.min
         self.__engine = create_engine(connection_string)
+        self.__create_schema()
 
     def _execute_reads(self, reads: tuple[ObjectRecord, ...]) -> tuple[ObjectRecord, ...]:
         records = ()
@@ -67,26 +68,29 @@ class SqlDBContext(DBContext):
         records = ()
 
         with Session(self.__engine) as s:
-            transaction = TransactionRecord(username=username, hostname=hostname, comment=comment)
+            transaction = Transactions(username=username, hostname=hostname, comment=comment)
             s.add(transaction)
 
             s.commit()
 
-            for w in writes:
-                record = self.__object_record(**w.model_dump(),
-                                              transaction_id=transaction.transaction_id,
-                                              entry_time=transaction.entry_time,
-                                              effective_time=min(transaction.entry_time, w.effective_time))
+            for write in writes:
+                record = self.__object_record(**{**write.model_dump(),
+                                                 "entry_time": transaction.entry_time,
+                                                 "effective_time": min(transaction.entry_time, write.effective_time)},
+                                              transaction_id=transaction.transaction_id)
                 s.add(record)
                 records += (record,)
 
             s.commit()
 
+            for record in records:
+                s.refresh(record)
+
         return records
 
     @cached_property
     def __object_record(self) -> type[ObjectRecord]:
-        class DBObjectRecord(SQLModel, ObjectRecord, table=True):
+        class Objects(SQLModel, ObjectRecord, table=True):
             uuid: UUID = Field(default_factory=uuid4, primary_key=True)
             object_id: str = Field(sa_column=Column(JSON))
             object_contents: str = Field(sa_column=Column(JSON))
@@ -100,12 +104,14 @@ class SqlDBContext(DBContext):
                 ),
             )
 
-        return DBObjectRecord
+        return Objects
 
     def __create_schema(self):
+        _ObjectRecord = self.__object_record
+
         SQLModel.metadata.create_all(self.__engine)
 
         with Session(self.__engine) as s:
-            statement = select(TransactionRecord).where(TransactionRecord.transaction_id == 0)
+            statement = select(Transactions).where(Transactions.transaction_id == 0)
             for transaction in s.exec(statement):
                 self.__min_entry_time = transaction.entry_time

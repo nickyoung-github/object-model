@@ -21,10 +21,12 @@ classifiers = [
 
 dependencies = [
     "dunamai",
+    "frozendict",
     "orjson",
     "pydantic>2",
     "requests",
-    "sqlalchemy"
+    "sqlalchemy",
+    "sqlmodel"
 ]
 
 [tool.setuptools]

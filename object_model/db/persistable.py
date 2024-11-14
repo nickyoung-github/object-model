@@ -5,9 +5,7 @@ from datetime import datetime
 from functools import cached_property
 from hashlib import sha3_512
 from orjson import dumps, loads
-from pydantic import ConfigDict, Field
-from pydantic.alias_generators import to_camel
-from sqlmodel import SQLModel
+from pydantic import BaseModel, Field
 from uuid import UUID, uuid4
 
 from .._descriptors import Id
@@ -22,15 +20,11 @@ class UseDerived:
     ...
 
 
-class ObjectRecord(SQLModel, table=True):
-    model_config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel)
-
-    uuid: UUID = Field(default_factory=uuid4, primary_key=True)
+class ObjectRecord(BaseModel):
     object_id: str
     object_id_type: str
     object_type: str
     object_contents: str
-    transaction_id: int
     effective_time: datetime
     entry_time: datetime
     effective_version: int

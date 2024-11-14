@@ -8,6 +8,7 @@ from pwd import getpwuid
 from .exception import DBNotFoundError
 from .persistable import ImmutableMixin, ObjectRecord, PersistableMixin
 from .._json import dumps
+from .._type_registry import is_temporary_type
 
 
 HEAD_VERSION = -1
@@ -40,7 +41,8 @@ class DBResult:
 
 
 class DBContext(ABC):
-    def __init__(self):
+    def __init__(self, allow_temporary_types: bool):
+        self.__allow_temporary_types = allow_temporary_types
         self.__entered = False
         self.__username = getpwuid(geteuid()).pw_name
         self.__hostname = uname().node
@@ -100,6 +102,9 @@ class DBContext(ABC):
         return result
 
     def write(self, obj: PersistableMixin, as_of_effective_time: bool = False):
+        if not self.__allow_temporary_types and is_temporary_type(type(obj)):
+            raise RuntimeError(f"Cannot persist temporary type {type(obj)}")
+
         if (as_of_effective_time or obj.entry_version > 1) and isinstance(obj, ImmutableMixin):
             raise RuntimeError(f"Cannot update immutable objects")
 

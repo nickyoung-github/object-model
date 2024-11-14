@@ -3,7 +3,7 @@ from pydantic import Field, GetCoreSchemaHandler
 from pydantic_core import core_schema
 from typing import _SpecialForm, Annotated, Any, Iterable, TypeVar, Union, get_args
 
-from ._json import TYPE_KEY
+from ._type_registry import TYPE_KEY
 
 __classes_with_type = {}
 
@@ -28,7 +28,7 @@ def Subclass(_cls, param_typ: type):
         subclasses.add(subclass)
         stack.extend(subclass.__subclasses__())
 
-    return DiscriminatedUnion[tuple(subclasses)]
+    return DiscriminatedUnion[subclasses]
 
 
 class __PydanticFrozenDictAnnotation:
