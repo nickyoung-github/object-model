@@ -4,25 +4,25 @@ from object_model import Id, PersistableModel
 
 
 def test_id():
-    class MyPersistable(PersistableModel):
+    class MyPersistable1(PersistableModel):
         id: ClassVar[Id] = Id("my_string", "my_int")
 
         my_string: str
         my_int: int
 
-    assert MyPersistable.id == (MyPersistable, ("my_string", "my_int"))
+    assert MyPersistable1.id == (MyPersistable1, ("my_string", "my_int"))
 
-    p = MyPersistable(my_string="foo", my_int=1)
-    assert p.id == (MyPersistable, ("foo", 1))
+    p = MyPersistable1(my_string="foo", my_int=1)
+    assert p.id == (MyPersistable1, ("foo", 1))
 
 
 def test_missing_id():
     try:
-        class MyPersistable(PersistableModel):
+        class MyPersistable2(PersistableModel):
             my_string: str
             my_int: int
 
-        _ = MyPersistable
+        _ = MyPersistable2
     except TypeError:
         assert True
     else:
@@ -31,13 +31,13 @@ def test_missing_id():
 
 def test_override_id():
     try:
-        class MyPersistable(PersistableModel):
+        class MyPersistable3(PersistableModel):
             id: ClassVar[Id] = Id("my_string", "my_int")
 
             my_string: str
             my_int: int
 
-        class DerivedPersistable(MyPersistable):
+        class DerivedPersistable(MyPersistable3):
             id: ClassVar[Id] = Id("my_string", "my_int", "my_float")
 
             my_float: float
@@ -75,10 +75,10 @@ def test_multiple_persistable_bases():
 
             my_int: int
 
-        class MyPersistable(Base1, Base2):
+        class MyPersistable4(Base1, Base2):
             my_float: float
 
-        _ = MyPersistable
+        _ = MyPersistable4
     except TypeError:
         assert True
     else:

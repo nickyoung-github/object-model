@@ -1,10 +1,10 @@
 from dataclasses import field, is_dataclass
 from datetime import date, datetime
 from pydantic import BaseModel
-from typing import Any, Callable, Literal, Union, get_origin, get_args
+from typing import Any, Callable, ClassVar, Literal, Union, get_origin, get_args
 
 from ._typing import DiscriminatedUnion, FrozenDict
-from ._type_registry import TYPE_KEY
+from ._type_registry import CLASS_TYPE_KEY, TYPE_KEY, register_type
 
 
 __base_type_order = {datetime: -2, date: -1, int: -1}
@@ -52,12 +52,22 @@ def check_type(fld: str, typ: Any) -> Any:
     return typ
 
 
-def validate_types(cls_name: str, namespace: dict[str, Any]):
-    annotations = namespace.setdefault("__annotations__", {})
+class TypeCheckMixin:
+    def __new__(cls, cls_name: str, bases: tuple[type[Any], ...], namespace: dict[str, Any], **kwargs):
+        annotations = namespace.setdefault("__annotations__", {})
 
-    for name, typ in annotations.items():
-        annotations[name] = check_type(name, typ)
+        for name, typ in annotations.items():
+            annotations[name] = check_type(name, typ)
 
-    if TYPE_KEY not in annotations:
-        annotations[TYPE_KEY] = Literal[cls_name]
-        namespace[TYPE_KEY] = field(default_factory=lambda: cls_name, init=False)
+        if TYPE_KEY not in annotations:
+            annotations[TYPE_KEY] = Literal[cls_name]
+            namespace[TYPE_KEY] = field(default_factory=lambda: cls_name, init=False)
+
+        annotations[CLASS_TYPE_KEY] = ClassVar[str]
+        namespace[CLASS_TYPE_KEY] = cls_name
+
+        ret = super().__new__(cls, cls_name, bases, namespace, **kwargs)
+        register_type(ret)
+
+        return ret
+

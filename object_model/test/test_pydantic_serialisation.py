@@ -2,29 +2,10 @@ from datetime import date
 from pydantic import ValidationError
 from typing import Any
 
-from object_model import BaseModel, NamedPersistableModel, Subclass
+from object_model import BaseModel
 from object_model._json import dumps, loads
 
-
-class Container(NamedPersistableModel):
-    contents: dict[str, date | str | float | int]
-
-
-class Container2(Container):
-    rank: int
-
-
-class Nested(NamedPersistableModel):
-    container: Subclass[Container]
-
-
-class Outer(NamedPersistableModel):
-    the_nested: Nested
-    date: date | str
-
-
-class Container3(Container2):
-    date: date
+from .shared_pydantic_types import Container, Container2, Container3, Nested, Outer
 
 
 def test_one_of():

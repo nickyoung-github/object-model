@@ -40,7 +40,7 @@ class ReplaceMixin:
 
     @property
     def __location(self) -> tuple[int, str]:
-        caller = getframeinfo(currentframe().f_back.f_back)
+        caller = getframeinfo(currentframe().f_back.f_back.f_back)
         return caller.positions.end_lineno, caller.filename
 
     def __getattribute__(self, item):

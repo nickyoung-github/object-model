@@ -4,31 +4,15 @@ from abc import abstractmethod
 from datetime import datetime
 from functools import cached_property
 from hashlib import sha3_512
-from orjson import dumps, loads
-from pydantic import BaseModel, Field
-from uuid import UUID, uuid4
 
+from .object_record import ObjectRecord
 from .._descriptors import Id
-from .._json import loads
-
-
-def type_name(typ: type) -> str:
-    return f"{typ.__module__}.{typ.__name__}"
+from .._json import dumps, loads
+from .._type_registry import CLASS_TYPE_KEY, TYPE_KEY
 
 
 class UseDerived:
     ...
-
-
-class ObjectRecord(BaseModel):
-    object_id: str
-    object_id_type: str
-    object_type: str
-    object_contents: str
-    effective_time: datetime
-    entry_time: datetime
-    effective_version: int
-    entry_version: int
 
 
 class PersistableMixin:
@@ -62,18 +46,22 @@ class PersistableMixin:
 
     @property
     def object_type(self) -> str:
-        return type_name(type(self))
+        return getattr(self, TYPE_KEY)
 
     @property
     def object_id_type(self) -> str:
-        return type_name(self.id[0])
+        return getattr(self.id[0], CLASS_TYPE_KEY)
 
     @property
-    def object_id(self) -> str:
-        return dumps(self.id[1]).decode("UTF-8")
+    def object_id(self) -> bytes:
+        return dumps(self.id[1])
+
+    @property
+    def object_contents(self) -> bytes:
+        return dumps(self)
 
     @classmethod
-    def make_id(cls, *args, **kwargs) -> tuple[str, str]:
+    def make_id(cls, *args, **kwargs) -> tuple[str, bytes]:
         id_type, id_fields = cls.id
         if id_type == UseDerived:
             raise RuntimeError("Can only be called on a persistable class")
@@ -88,7 +76,7 @@ class PersistableMixin:
             else:
                 raise ValueError(f"Missing ID field {name}")
 
-        return type_name(id_type), dumps(ret).decode("UTF-8")
+        return getattr(id_type, CLASS_TYPE_KEY), dumps(ret)
 
     @classmethod
     def _check_persistable_class(cls, fields: tuple[str, ...]):

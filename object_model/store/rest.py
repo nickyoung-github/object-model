@@ -1,12 +1,12 @@
 from requests import Session, codes
 from typing import Any
 
-from . import DBContext
+from . import ObjectResult
 from .persistable import ObjectRecord
 from .._json import dumps, loads
 
 
-class HttpContext(DBContext):
+class HttpStoreClient(ObjectResult):
     def __init__(self, base_url: str):
         super().__init__()
         self.__base_url = base_url

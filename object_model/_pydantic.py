@@ -6,16 +6,14 @@ from pydantic._internal._model_construction import ModelMetaclass as PydanticMod
 from typing import Any, ClassVar
 
 
-from .db.persistable import ImmutableMixin, PersistableMixin, UseDerived
+from .store.persistable import ImmutableMixin, PersistableMixin, UseDerived
 from ._descriptors import Id
 from ._replace import ReplaceMixin
-from ._type_checking import validate_types
+from ._type_checking import TypeCheckMixin
 
 
-class __ModelMetaclass(PydanticModelMetaclass):
-    def __new__(mcs, cls_name: str, bases: tuple[type[Any], ...], namespace: dict[str, Any], **kwargs):
-        validate_types(cls_name, namespace)
-        return super().__new__(mcs, cls_name, bases, namespace, **kwargs)
+class __ModelMetaclass(TypeCheckMixin, PydanticModelMetaclass):
+    pass
 
 
 class BaseModel(PydanticBaseModel, ReplaceMixin, metaclass=__ModelMetaclass):

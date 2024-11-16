@@ -1,6 +1,7 @@
 import importlib.metadata as md
 
 TYPE_KEY = "t_"
+CLASS_TYPE_KEY = "t__"
 
 
 class __TypeRegistry:
@@ -14,11 +15,11 @@ class __TypeRegistry:
         return cls.__instance
 
     def __getitem__(self, item) -> type:
-        typ, _is_temporary = self.__types.get(item)
+        typ, _is_temporary = self.__types.get(item, (None, False))
         if not typ:
             entry_point = md.entry_points(group="object-store", name=item)
-            if entry_point is None:
-                raise RuntimeError(f"{item} not registered")
+            if not entry_point:
+                raise KeyError(f"{item} not registered")
 
             typ, _is_temporary = self.__types[item] = entry_point[0].load(), False
 
@@ -31,10 +32,13 @@ class __TypeRegistry:
 
         return is_temporary
 
-    def register_temporary_type(self, typ: type):
-        type_name = getattr(typ, TYPE_KEY)
+    def register_type(self, typ: type):
+        type_name = getattr(typ, CLASS_TYPE_KEY, None)
         if type_name is None:
             raise RuntimeError(f"{typ} is missing attribute {TYPE_KEY}")
+
+        if type_name in self.__types:
+            raise RuntimeError(f"Attemped to register duplicate class {type_name}")
 
         self.__types[type_name] = typ, True
 
@@ -45,7 +49,7 @@ def get_type(type_name: str) -> type:
 
 def is_temporary_type(typ: str | type) -> bool:
     if isinstance(typ, type):
-        type_name = getattr(typ, TYPE_KEY)
+        type_name = getattr(typ, CLASS_TYPE_KEY, None)
         if type_name is None:
             raise RuntimeError(f"{typ} is missing attribute {TYPE_KEY}")
     else:
@@ -54,5 +58,5 @@ def is_temporary_type(typ: str | type) -> bool:
     return __TypeRegistry().is_temporary_type(type_name)
 
 
-def register_temporary_type(typ: type):
-    __TypeRegistry().register_temporary_type(typ)
+def register_type(typ: type):
+    __TypeRegistry().register_type(typ)

@@ -7,14 +7,10 @@ from pwd import getpwuid
 
 from .exception import DBNotFoundError
 from .persistable import ImmutableMixin, ObjectRecord, PersistableMixin
-from .._json import dumps
 from .._type_registry import is_temporary_type
 
 
-HEAD_VERSION = -1
-
-
-class DBResult:
+class ObjectResult:
     def __init__(self):
         self.__future = Future()
 
@@ -40,7 +36,7 @@ class DBResult:
         self.__future.set_exception(exception)
 
 
-class DBContext(ABC):
+class ObjectStore(ABC):
     def __init__(self, allow_temporary_types: bool):
         self.__allow_temporary_types = allow_temporary_types
         self.__entered = False
@@ -49,8 +45,8 @@ class DBContext(ABC):
         self.__comment = ""
         self.__pending_reads: tuple[ObjectRecord, ...] = ()
         self.__pending_writes: tuple[ObjectRecord, ...] = ()
-        self.__read_results: dict[tuple[str, str], DBResult] = {}
-        self.__written_objects: dict[tuple[str, str], PersistableMixin] = {}
+        self.__read_results: dict[tuple[str, bytes], ObjectResult] = {}
+        self.__written_objects: dict[tuple[str, bytes], PersistableMixin] = {}
         self.__write_future: Future[bool] = Future()
 
     def __enter__(self, comment: str = ""):
@@ -81,27 +77,23 @@ class DBContext(ABC):
              *args,
              effective_time: dt.datetime = dt.datetime.max,
              entry_time: dt.datetime = dt.datetime.max,
-             **kwargs) -> DBResult:
+             **kwargs) -> ObjectResult:
         object_id_type, object_id = typ.make_id(*args, **kwargs)
 
-        record = ObjectRecord(object_type="",
-                              object_id_type=object_id_type,
+        record = ObjectRecord(object_id_type=object_id_type,
                               object_id=object_id,
-                              object_contents="",
-                              effective_version=HEAD_VERSION,
-                              entry_version=HEAD_VERSION,
                               effective_time=effective_time,
                               entry_time=entry_time)
 
         self.__pending_reads += (record,)
-        result = self.__read_results[(object_id_type, object_id)] = DBResult()
+        result = self.__read_results[(object_id_type, object_id)] = ObjectResult()
 
         if not self.__entered:
             self._execute()
 
         return result
 
-    def write(self, obj: PersistableMixin, as_of_effective_time: bool = False):
+    def write(self, obj: PersistableMixin, as_of_effective_time: bool = False) -> Future[bool]:
         if not self.__allow_temporary_types and is_temporary_type(type(obj)):
             raise RuntimeError(f"Cannot persist temporary type {type(obj)}")
 
@@ -111,7 +103,7 @@ class DBContext(ABC):
         record = ObjectRecord(object_type=obj.object_type,
                               object_id_type=obj.object_id_type,
                               object_id=obj.object_id,
-                              object_contents=dumps(obj),
+                              object_contents=obj.object_contents,
                               effective_version=obj.effective_version if as_of_effective_time else obj.effective_version + 1,
                               entry_version=obj.entry_version + 1 if as_of_effective_time else 1,
                               effective_time=obj.effective_time if as_of_effective_time else dt.datetime.max,

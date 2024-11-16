@@ -5,8 +5,6 @@ from typing import _SpecialForm, Annotated, Any, Iterable, TypeVar, Union, get_a
 
 from ._type_registry import TYPE_KEY
 
-__classes_with_type = {}
-
 
 @_SpecialForm
 def DiscriminatedUnion(_cls, types: Iterable[type]):

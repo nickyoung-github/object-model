@@ -1,37 +1,16 @@
 from datetime import date
 from time import sleep
 
-from object_model import NamedPersistableModel, Subclass
-from object_model.db import SqliteContext
+from object_model.store import MemoryStore
 
-
-class Container(NamedPersistableModel):
-    contents: dict[str, date | str | float | int]
-
-
-class Container2(Container):
-    rank: int
-
-
-class Nested(NamedPersistableModel):
-    container: Subclass[Container]
-
-
-class Outer(NamedPersistableModel):
-    the_nested: Nested
-    the_version: int = 0
-
-
-class Container3(Container2):
-    # Deliberately declared after the Subclass declaration in Nested
-    date: date
+from .shared_pydantic_types import Container, Container2, Container3, Nested, Outer
 
 
 def test_roundtrip():
     c = Container2(name="container", contents={"foo": 1}, rank=1)
-    o = Outer(name="outer", the_nested=Nested(name="nested", container=c))
+    o = Outer(name="outer", the_nested=Nested(name="nested", container=c), date=date.today())
 
-    db = SqliteContext()
+    db = MemoryStore()
 
     assert db.write(o).result()
     assert o == db.read(Outer, "outer").value
@@ -39,9 +18,9 @@ def test_roundtrip():
 
 def test_update():
     c = Container2(name="container", contents={"foo": 1}, rank=1)
-    o = Outer(name="outer", the_nested=Nested(name="nested", container=c))
+    o = Outer(name="outer", the_nested=Nested(name="nested", container=c), date=date.today())
 
-    db = SqliteContext()
+    db = MemoryStore()
 
     assert db.write(o).result()
 
@@ -82,7 +61,7 @@ def test_update():
 
 def test_load_via_base():
     c3 = Container3(name="container3", contents={"foo": 1}, rank=2, date=date.today())
-    db = SqliteContext()
+    db = MemoryStore()
 
     assert db.write(c3).result()
 

@@ -2,11 +2,11 @@ from fastapi import FastAPI
 import uvicorn
 
 from object_model import BaseModel
-from object_model.db.persistable import ObjectRecord
-from object_model.db.sql import SqlDBContext
+from object_model.store.persistable import ObjectRecord
+from object_model.store.sql import SqlStore
 
 app = FastAPI()
-db = SqlDBContext()
+db = SqlStore()
 
 
 class ReadRequest(BaseModel):

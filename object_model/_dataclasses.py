@@ -4,16 +4,14 @@ from dataclasses import dataclass, fields, replace
 from pydantic.alias_generators import to_camel
 from typing import ClassVar
 
-from .db.persistable import ImmutableMixin, PersistableMixin, UseDerived
+from .store.persistable import ImmutableMixin, PersistableMixin, UseDerived
 from ._descriptors import Id
 from ._replace import ReplaceMixin
-from ._type_checking import validate_types
+from ._type_checking import TypeCheckMixin
 
 
-class __BaseMetaClass(type):
-    def __new__(cls, cls_name, bases, namespace, **kwargs):
-        validate_types(cls_name, namespace)
-        return super().__new__(cls, cls_name, bases, namespace, **kwargs)
+class __BaseMetaClass(TypeCheckMixin, type):
+    pass
 
 
 @dataclass(frozen=True)
