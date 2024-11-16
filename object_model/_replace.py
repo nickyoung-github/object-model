@@ -54,7 +54,17 @@ class ReplaceMixin:
         return ret
 
     def replace(self, /, copy_root: bool = True, **changes):
+        valid = self._fields
+        invalid = [f for f in changes.keys() if f not in valid]
+        if invalid:
+            raise RuntimeError(f"Invalid fields specified: {invalid}")
+
         return _CallStack().copy(self, self.__location, self._replace(**changes), copy_root)
+
+    @property
+    @abstractmethod
+    def _fields(self) -> set[str]:
+        ...
 
     @abstractmethod
     def _replace(self, /, **changes):

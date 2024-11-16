@@ -1,6 +1,7 @@
 from __future__ import annotations as __annotations
 
 from dataclasses import dataclass, fields, replace
+from functools import cached_property
 from pydantic.alias_generators import to_camel
 from typing import ClassVar
 
@@ -18,6 +19,10 @@ class __BaseMetaClass(TypeCheckMixin, type):
 class Base(ReplaceMixin, metaclass=__BaseMetaClass):
     class Config:
         alias_generator = to_camel
+
+    @cached_property
+    def _fields(self) -> set[str]:
+        return set(f.name for f in fields(self))
 
     def _replace(self, /, **changes):
         return replace(self, **changes)

@@ -1,5 +1,6 @@
 from __future__ import annotations as __annotations
 
+from functools import cached_property
 from pydantic import BaseModel as PydanticBaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from pydantic._internal._model_construction import ModelMetaclass as PydanticModelMetaclass
@@ -18,6 +19,10 @@ class __ModelMetaclass(TypeCheckMixin, PydanticModelMetaclass):
 
 class BaseModel(PydanticBaseModel, ReplaceMixin, metaclass=__ModelMetaclass):
     model_config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel)
+
+    @cached_property
+    def _fields(self) -> set[str]:
+        return set(self.model_fields.keys())
 
     def _replace(self, /, **changes):
         return self.model_copy(update=changes)

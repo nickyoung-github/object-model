@@ -10,7 +10,9 @@ from .object_record import ObjectRecord
 
 class Transactions(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True, index=True)
-    entry_time: datetime = Field(sa_column_kwargs={"server_default": text("CURRENT_TIMESTAMP")})
+    # entry_time: datetime = Field(sa_column_kwargs={"server_default": text("CURRENT_TIMESTAMP")})
+    entry_time: datetime = Field(sa_column_kwargs=
+                                 {"server_default": text("(STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')) NOT NULL")})
     username: str
     hostname: str
     comment: str
@@ -103,11 +105,11 @@ class SqlStore(ObjectStore):
 
 class TempStore(SqlStore):
 
-    def __init__(self):
+    def __init__(self, debug: bool = False):
         self.__file = NamedTemporaryFile()
-        super().__init__(f"sqlite:///{self.__file.name}", True)
+        super().__init__(f"sqlite:///{self.__file.name}", True, debug=debug)
 
 
 class MemoryStore(SqlStore):
-    def __init__(self):
-        super().__init__("sqlite+pysqlite:///:memory:", True)
+    def __init__(self, debug: bool = False):
+        super().__init__("sqlite+pysqlite:///:memory:", True, debug=debug)
