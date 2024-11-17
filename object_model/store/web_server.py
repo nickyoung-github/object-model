@@ -36,6 +36,8 @@ async def read(request: ReadRequest) -> tuple[ObjectRecord, ...]:
 
 @app.post("/write/")
 async def write(request: WriteRequest) -> tuple[ObjectRecord, ...]:
+    # ToDo: This isn't quite right - we should have a single schema, to avoid duplication of referenced types
+
     for record in request.writes:
         schema = schemas.get(record.object_type)
         if not schema:
