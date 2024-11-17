@@ -19,21 +19,13 @@ classifiers = [
     "Operating System :: OS Independent"
 ]
 
-dependencies = [
-    "dunamai",
-    "fastapi",
-    "frozendict",
-    "jsonschema",
-    "orjson",
-    "pydantic>2",
-    "requests",
-    "sqlalchemy",
-    "sqlmodel",
-    "uvicorn"
-]
+dynamic = ["dependencies"]
 
 [tool.setuptools]
 include-package-data = true
+
+[tool.setuptools.dynamic]
+dependencies = {file = "requirements.txt"}
 
 [project.optional-dependencies]
 test = [
