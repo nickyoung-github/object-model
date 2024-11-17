@@ -7,3 +7,4 @@ from .exception import (
 )
 from .store import ObjectResult
 from .sql import MemoryStore, SqlStore, TempStore
+from .web_client import WebStoreClient

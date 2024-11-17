@@ -58,7 +58,7 @@ class ObjectStore(ABC):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.__entered = False
-        self._execute()
+        self.__execute()
 
     @abstractmethod
     def _execute_reads(self, reads: tuple[ObjectRecord, ...]) -> tuple[ObjectRecord, ...]:
@@ -89,7 +89,7 @@ class ObjectStore(ABC):
         result = self.__read_results[(object_id_type, object_id)] = ObjectResult()
 
         if not self.__entered:
-            self._execute()
+            self.__execute()
 
         return result
 
@@ -114,11 +114,11 @@ class ObjectStore(ABC):
 
         ret = self.__write_future
         if not self.__entered:
-            self._execute()
+            self.__execute()
 
         return ret
 
-    def _execute(self):
+    def __execute(self):
         try:
             if self.__pending_writes:
                 records = self._execute_writes(self.__pending_writes, self.__username, self.__hostname, self.__comment)
