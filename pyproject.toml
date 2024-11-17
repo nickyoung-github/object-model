@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "onject-model"
+name = "object-model"
 description = "Core Object Model"
 authors = [
     {name = "Nick Young", email = "nick.young.github@gmail.com"}
