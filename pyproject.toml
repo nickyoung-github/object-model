@@ -20,13 +20,26 @@ classifiers = [
 ]
 
 version = "1.0.0"
-dynamic = ["dependencies"]
+# dynamic = ["dependencies"]
+
+dependencies = [
+    "fastapi",
+    "frozendict",
+    "jsonschema",
+    "orjson",
+    "pydantic",
+    "Requests",
+    "setuptools",
+    "SQLAlchemy",
+    "sqlmodel",
+    "uvicorn"
+]
 
 [tool.setuptools]
 include-package-data = true
 
-[tool.setuptools.dynamic]
-dependencies = {file = "requirements.txt"}
+#[tool.setuptools.dynamic]
+#dependencies = {file = "requirements.txt"}
 
 [project.optional-dependencies]
 test = [
@@ -35,4 +48,5 @@ test = [
 ]
 
 [project.entry-points.objectstore]
-NamedPersistable = "_pydantic:NamedPersistable"
+NamedPersistableModel = "object_model._pydantic:NamedPersistableModel"
+NamedPersistable = "object_model._dataclasses:NamedPersistable"
