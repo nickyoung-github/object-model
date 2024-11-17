@@ -33,5 +33,5 @@ test = [
     "pytest-cov"
 ]
 
-[project.entry-points."object-store"]
+[project.entry-points.objectstore]
 NamedPersistable = "_pydantic:NamedPersistable"

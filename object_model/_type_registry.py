@@ -17,7 +17,7 @@ class __TypeRegistry:
     def __getitem__(self, item) -> type:
         typ, _is_temporary = self.__types.get(item, (None, False))
         if not typ:
-            entry_point = md.entry_points(group="object-store", name=item)
+            entry_point = md.entry_points(group="objectstore", name=item)
             if not entry_point:
                 raise KeyError(f"{item} not registered")
 
