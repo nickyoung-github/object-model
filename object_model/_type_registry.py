@@ -11,17 +11,18 @@ class __TypeRegistry:
         if cls.__instance is None:
             cls.__instance = super().__new__(cls, *args, **kwargs)
             cls.__instance.__types = {}
+            cls.__object_store = md.entry_points(group="object-store")
 
         return cls.__instance
 
     def __getitem__(self, item) -> type:
         typ, _is_temporary = self.__types.get(item, (None, False))
         if not typ:
-            entry_point = md.entry_points(group="objectstore", name=item)
-            if not entry_point:
+            try:
+                entry_point = self.__object_store[item]
+                typ, _is_temporary = self.__types[item] = entry_point.load(), False
+            except KeyError:
                 raise KeyError(f"{item} not registered")
-
-            typ, _is_temporary = self.__types[item] = entry_point[0].load(), False
 
         return typ
 

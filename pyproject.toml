@@ -19,8 +19,7 @@ classifiers = [
     "Operating System :: OS Independent"
 ]
 
-version = "1.0.0"
-# dynamic = ["dependencies"]
+dynamic = ["entry-points", "version"]
 
 dependencies = [
     "fastapi",
@@ -28,18 +27,12 @@ dependencies = [
     "jsonschema",
     "orjson",
     "pydantic",
-    "Requests",
+    "requests",
     "setuptools",
-    "SQLAlchemy",
+    "sqlalchemy",
     "sqlmodel",
     "uvicorn"
 ]
-
-[tool.setuptools]
-include-package-data = true
-
-#[tool.setuptools.dynamic]
-#dependencies = {file = "requirements.txt"}
 
 [project.optional-dependencies]
 test = [
@@ -47,6 +40,6 @@ test = [
     "pytest-cov"
 ]
 
-[project.entry-points.objectstore]
-NamedPersistableModel = "object_model._pydantic:NamedPersistableModel"
-NamedPersistable = "object_model._dataclasses:NamedPersistable"
+[tool.setuptools.dynamic]
+entry-points = {file = "entry-points.txt"}
+version = {attr = "object_model.__init__.__version__"}
