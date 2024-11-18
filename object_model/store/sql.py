@@ -8,11 +8,9 @@ from .store import ObjectStore
 from .object_record import ObjectRecord
 
 
-class Transactions(SQLModel, table=True):
+class Transactions(SQLModel, table=True, keep_existing=True):
     id: int = Field(default=None, primary_key=True, index=True)
-    # entry_time: datetime = Field(sa_column_kwargs={"server_default": text("CURRENT_TIMESTAMP")})
-    entry_time: datetime = Field(sa_column_kwargs=
-                                 {"server_default": text("(STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')) NOT NULL")})
+    entry_time: datetime
     username: str
     hostname: str
     comment: str
@@ -33,6 +31,13 @@ class SqlStore(ObjectStore):
         self.__min_entry_time: datetime = datetime.min
         self.__engine = create_engine(connection_string, echo=debug)
         self.__create_schema()
+
+        # This is unfortunate - we'd like to just use a server column default for current time, but the syntax for
+        # doing this is inconsistent between SQL dialects
+
+        self.__current_utc_time_sql = text("current_timestamp AT TIME ZONE 'UTC'")
+        if self.__engine.dialect.driver in ("pysqlite", "sqlite"):
+            self.__current_utc_time_sql = text("STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')")
 
     def _execute_reads(self, reads: tuple[ObjectRecord, ...]) -> tuple[ObjectRecord, ...]:
         records = ()
@@ -75,14 +80,16 @@ class SqlStore(ObjectStore):
         records = ()
 
         with Session(self.__engine) as s:
-            transaction = Transactions(username=username, hostname=hostname, comment=comment)
+            entry_time = datetime.fromisoformat(next(iter(s.exec(select(self.__current_utc_time_sql)).first())))
+
+            transaction = Transactions(username=username, hostname=hostname, comment=comment, entry_time=entry_time)
             s.add(transaction)
             s.commit()
 
             for record in writes:
                 record.transaction_id = transaction.id
-                record.entry_time = transaction.entry_time
-                record.effective_time = min(transaction.entry_time, record.effective_time)
+                record.entry_time = entry_time
+                record.effective_time = min(entry_time, record.effective_time)
 
                 s.add(record)
                 records += (record,)
@@ -98,13 +105,10 @@ class SqlStore(ObjectStore):
         SQLModel.metadata.create_all(self.__engine)
 
         with Session(self.__engine) as s:
-            statement = select(func.min(Transactions.entry_time))
-            for entry_time in s.exec(statement):
-                self.__min_entry_time = entry_time
+            self.__min_entry_time = next(iter(s.exec(select(func.min(Transactions.entry_time))).first()), datetime.max)
 
 
 class TempStore(SqlStore):
-
     def __init__(self, debug: bool = False):
         self.__file = NamedTemporaryFile()
         super().__init__(f"sqlite:///{self.__file.name}", True, debug=debug)

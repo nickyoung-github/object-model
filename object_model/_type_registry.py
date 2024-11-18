@@ -38,7 +38,7 @@ class __TypeRegistry:
         if type_name is None:
             raise RuntimeError(f"{typ} is missing attribute {TYPE_KEY}")
 
-        if type_name in self.__types:
+        if type_name in self.__types:  # or type_name in self.__object_store.names:
             raise RuntimeError(f"Attemped to register duplicate class {type_name}")
 
         self.__types[type_name] = typ, True
