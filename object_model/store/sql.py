@@ -40,7 +40,6 @@ class SqlStore(ObjectStore):
             self.__current_utc_time_sql = text("STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')")
 
     def _execute_reads(self, reads: tuple[ObjectRecord, ...]) -> tuple[ObjectRecord, ...]:
-        records = ()
         grouped_reads = {}
 
         for r in reads:
@@ -67,10 +66,7 @@ class SqlStore(ObjectStore):
                     ObjectRecord.entry_version == subquery.c.entry_version
                 ))
 
-                for record in query.all():
-                    records += (record,)
-
-        return records
+                return tuple(query.all())
 
     def _execute_writes(self,
                         writes: tuple[ObjectRecord, ...],
