@@ -79,7 +79,7 @@ class PersistableMixin:
         return getattr(id_type, CLASS_TYPE_KEY), dumps(ret)
 
     @classmethod
-    def _check_persistable_class(cls, fields: tuple[str, ...]):
+    def _check_persistable_class(cls):
         bases: list[type[PersistableMixin]] = [b for b in cls.__bases__ if issubclass(b, PersistableMixin)]
         if len(bases) > 1:
             raise TypeError(f"{cls} derives from multiple Persistable classes: {bases}")
@@ -100,17 +100,18 @@ class PersistableMixin:
         else:
             # Check the id fields all exist in our type
             _, flds = cls.id
-            missing = [f for f in flds if f not in fields and f not in cls.__annotations__ and not hasattr(cls, f)]
+            all_fields = cls._fields()
+            missing = [f for f in flds if f not in all_fields and f not in cls.__annotations__ and not hasattr(cls, f)]
             if missing:
                 raise TypeError(f"{missing} specified as id field(s) but not model field(s) of {cls}")
 
     @classmethod
-    def from_db_record(cls, record: ObjectRecord) -> PersistableMixin:
+    def from_object_record(cls, record: ObjectRecord) -> PersistableMixin:
         ret: PersistableMixin = loads(record.object_contents, record.object_type)
-        ret.set_db_info(record)
+        ret.set_object_info(record)
         return ret
 
-    def set_db_info(self, record: ObjectRecord):
+    def set_object_info(self, record: ObjectRecord):
         object.__setattr__(self, "_PersistableMixin__effective_time", record.effective_time)
         object.__setattr__(self, "_PersistableMixin__entry_time", record.entry_time)
         object.__setattr__(self, "_PersistableMixin__effective_version", record.effective_version)

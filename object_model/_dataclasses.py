@@ -1,7 +1,7 @@
 from __future__ import annotations as __annotations
 
 from dataclasses import dataclass, fields, replace
-from functools import cached_property
+from functools import cache
 from pydantic.alias_generators import to_camel
 from typing import ClassVar
 
@@ -20,9 +20,10 @@ class Base(ReplaceMixin, metaclass=__BaseMetaClass):
     class Config:
         alias_generator = to_camel
 
-    @cached_property
-    def _fields(self) -> set[str]:
-        return set(f.name for f in fields(self))
+    @classmethod
+    @cache
+    def _fields(cls) -> set[str]:
+        return set(f.name for f in fields(cls))
 
     def _replace(self, /, **changes):
         return replace(self, **changes)
@@ -36,7 +37,7 @@ class Persistable(Base, PersistableMixin):
         if "__init_subclass__" in cls.__dict__:
             raise RuntimeError(f"Redefinition of __init_subclass__ by {cls} is not allowed")
 
-        cls._check_persistable_class(tuple(f.name for f in fields(cls)))
+        cls._check_persistable_class()
 
     def __post_init__(self):
         PersistableMixin.__init__(self)

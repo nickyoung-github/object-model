@@ -125,7 +125,7 @@ class ObjectStore(ABC):
 
                 for record in records:
                     obj = self.__written_objects.pop((record.object_id_type, record.object_id))
-                    obj.set_db_info(record)
+                    obj.set_object_info(record)
 
                 if self.__written_objects:
                     raise RuntimeError("Failed to receive replies for all written objects")
@@ -140,7 +140,7 @@ class ObjectStore(ABC):
 
                     for record in records:
                         result = self.__read_results.pop((record.object_id_type, record.object_id))
-                        result.set_result(PersistableMixin.from_db_record(record))
+                        result.set_result(PersistableMixin.from_object_record(record))
 
                     while self.__read_results:
                         _, result = self.__read_results.popitem()

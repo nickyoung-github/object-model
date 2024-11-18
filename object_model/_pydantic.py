@@ -1,6 +1,6 @@
 from __future__ import annotations as __annotations
 
-from functools import cached_property
+from functools import cache
 from pydantic import BaseModel as PydanticBaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from pydantic._internal._model_construction import ModelMetaclass as PydanticModelMetaclass
@@ -20,9 +20,10 @@ class __ModelMetaclass(TypeCheckMixin, PydanticModelMetaclass):
 class BaseModel(PydanticBaseModel, ReplaceMixin, metaclass=__ModelMetaclass):
     model_config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel)
 
-    @cached_property
-    def _fields(self) -> set[str]:
-        return set(self.model_fields.keys())
+    @classmethod
+    @cache
+    def _fields(cls) -> set[str]:
+        return set(cls.model_fields.keys())
 
     def _replace(self, /, **changes):
         return self.model_copy(update=changes)
@@ -36,7 +37,7 @@ class PersistableModel(BaseModel, PersistableMixin):
         if "__pydantic_init_subclass__" in cls.__dict__:
             raise RuntimeError(f"Redefinition of __pydantic_init_subclass__ by {cls} is not allowed")
 
-        cls._check_persistable_class(tuple(cls.model_fields.keys()))
+        cls._check_persistable_class()
 
     def model_post_init(self, __context: Any) -> None:
         PersistableMixin.__init__(self)
