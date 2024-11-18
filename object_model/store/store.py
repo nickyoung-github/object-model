@@ -125,7 +125,7 @@ class ObjectStore(ABC):
 
                 for record in records:
                     obj = self.__written_objects.pop((record.object_id_type, record.object_id))
-                    obj.set_object_info(record)
+                    obj.init_from_record(record)
 
                 if self.__written_objects:
                     raise RuntimeError("Failed to receive replies for all written objects")

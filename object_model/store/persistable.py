@@ -18,10 +18,7 @@ class UseDerived:
 class PersistableMixin:
     def __init__(self):
         # This mixin is used by frozen dataclasses, which stop you setting private members (annoyingly)
-        object.__setattr__(self, "_PersistableMixin__effective_time", datetime.max)
-        object.__setattr__(self, "_PersistableMixin__entry_time", datetime.max)
-        object.__setattr__(self, "_PersistableMixin__effective_version", 0)
-        object.__setattr__(self, "_PersistableMixin__entry_version", 0)
+        self.__init(datetime.max, datetime.max, 0, 0)
 
     @property
     def effective_time(self) -> datetime:
@@ -108,14 +105,17 @@ class PersistableMixin:
     @classmethod
     def from_object_record(cls, record: ObjectRecord) -> PersistableMixin:
         ret: PersistableMixin = loads(record.object_contents, record.object_type)
-        ret.set_object_info(record)
+        ret.init_from_record(record)
         return ret
 
-    def set_object_info(self, record: ObjectRecord):
-        object.__setattr__(self, "_PersistableMixin__effective_time", record.effective_time)
-        object.__setattr__(self, "_PersistableMixin__entry_time", record.entry_time)
-        object.__setattr__(self, "_PersistableMixin__effective_version", record.effective_version)
-        object.__setattr__(self, "_PersistableMixin__entry_version", record.entry_version)
+    def init_from_record(self, record: ObjectRecord):
+        self.__init(record.effective_time, record.entry_time, record.effective_version, record.entry_version)
+
+    def __init(self, effective_time: datetime, entry_time: datetime, effective_version: int, entry_version: int):
+        object.__setattr__(self, "_PersistableMixin__effective_time", effective_time)
+        object.__setattr__(self, "_PersistableMixin__entry_time", entry_time)
+        object.__setattr__(self, "_PersistableMixin__effective_version", effective_version)
+        object.__setattr__(self, "_PersistableMixin__entry_version", entry_version)
 
 
 class ImmutableMixin:
