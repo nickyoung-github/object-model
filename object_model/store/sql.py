@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from psycopg.types.json import set_json_dumps, set_json_loads
-from sqlalchemy import Index, String, and_, create_engine, func, literal, select, text
+from sqlalchemy import String, and_, create_engine, func, literal, select, text
 from sqlalchemy_utc import utcnow
 from sqlmodel import Field, SQLModel, Session
 from tempfile import NamedTemporaryFile
@@ -12,19 +12,11 @@ from .object_record import ObjectRecord
 
 
 class Transactions(SQLModel, table=True, keep_existing=True):
-    id: int = Field(default=None, primary_key=True, index=True)
-    entry_time: datetime = Field(default=None, sa_column_kwargs={"server_default": utcnow()})
+    id: int = Field(default=None, primary_key=True)
+    entry_time: datetime = Field(default=None, index=True, sa_column_kwargs={"server_default": utcnow()})
     username: str
     hostname: str
     comment: str
-
-    __table_args__ = (
-        Index(
-            "idx_transactions",
-            "entry_time", "id",
-            unique=True
-        ),
-    )
 
 
 class SqlStore(ObjectStore):
@@ -32,9 +24,11 @@ class SqlStore(ObjectStore):
         super().__init__(check_schema, allow_temporary_types)
         set_json_dumps(lambda x: x.decode("utf-8") if isinstance(x, bytes) else x)
         set_json_loads(lambda x: x)
+
         self.__existing_types: set[str] = set()
         self.__min_entry_time: datetime = datetime.min
         self.__engine = create_engine(connection_string, echo=debug)
+        self.__is_partitioned = self.__engine.dialect.name == "postgresql"
         self.__create_schema()
 
     def _execute_reads(self, reads: tuple[ObjectRecord, ...]) -> Iterable[ObjectRecord]:
@@ -57,7 +51,7 @@ class SqlStore(ObjectStore):
                     ObjectRecord.entry_time <= entry_time,
                     ObjectRecord.object_id_type == object_id_type,
                     ObjectRecord.object_id.cast(String).in_([literal(o.decode("utf-8")) for o in object_ids])).group_by(
-                    ObjectRecord.object_id_type, ObjectRecord.object_id).subquery()
+                        ObjectRecord.object_id_type, ObjectRecord.object_id).subquery()
 
                 # Load the contents corresponding to the max version
 
@@ -100,7 +94,7 @@ class SqlStore(ObjectStore):
         return records
 
     def __add_type(self, object_id_type: str, session: Session):
-        if self.__engine.dialect.name == "postgresql":
+        if self.__is_partitioned:
             if object_id_type not in SQLModel.metadata.tables:
                 partition_stmt = text(fr"""
                     CREATE TABLE IF NOT EXISTS "{object_id_type}"
