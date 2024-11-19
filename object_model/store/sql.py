@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from sqlalchemy import Index, and_, create_engine, func, select, text
+from psycopg.types.json import set_json_dumps, set_json_loads
+from sqlalchemy import Index, String, and_, create_engine, func, literal, select, text
+from sqlalchemy_utc import utcnow
 from sqlmodel import Field, SQLModel, Session
 from tempfile import NamedTemporaryFile
 
@@ -10,7 +12,7 @@ from .object_record import ObjectRecord
 
 class Transactions(SQLModel, table=True, keep_existing=True):
     id: int = Field(default=None, primary_key=True, index=True)
-    entry_time: datetime
+    entry_time: datetime = Field(default=None, sa_column_kwargs={"server_default": utcnow()})
     username: str
     hostname: str
     comment: str
@@ -27,17 +29,12 @@ class Transactions(SQLModel, table=True, keep_existing=True):
 class SqlStore(ObjectStore):
     def __init__(self, connection_string: str, allow_temporary_types: bool, debug: bool = False):
         super().__init__(allow_temporary_types)
+        set_json_dumps(lambda x: x.decode("utf-8") if isinstance(x, bytes) else x)
+        set_json_loads(lambda x: x)
         self.__existing_types: set[str] = set()
         self.__min_entry_time: datetime = datetime.min
         self.__engine = create_engine(connection_string, echo=debug)
         self.__create_schema()
-
-        # This is unfortunate - we'd like to just use a server column default for current time, but the syntax for
-        # doing this is inconsistent between SQL dialects
-
-        self.__current_utc_time_sql = text("current_timestamp AT TIME ZONE 'UTC'")
-        if self.__engine.dialect.driver in ("pysqlite", "sqlite"):
-            self.__current_utc_time_sql = text("STRFTIME('%Y-%m-%d %H:%M:%f', 'NOW')")
 
     def _execute_reads(self, reads: tuple[ObjectRecord, ...]) -> tuple[ObjectRecord, ...]:
         grouped_reads = {}
@@ -49,6 +46,8 @@ class SqlStore(ObjectStore):
             while grouped_reads:
                 (object_id_type, effective_time, entry_time), object_ids = grouped_reads.popitem()
 
+                # Find the max version at or before the given times
+
                 subquery = s.query(ObjectRecord.object_id_type,
                                    ObjectRecord.object_id,
                                    func.max(ObjectRecord.effective_version).label("effective_version"),
@@ -56,8 +55,10 @@ class SqlStore(ObjectStore):
                     ObjectRecord.effective_time <= effective_time,
                     ObjectRecord.entry_time <= entry_time,
                     ObjectRecord.object_id_type == object_id_type,
-                    ObjectRecord.object_id.in_(object_ids)).group_by(
-                        ObjectRecord.object_id_type, ObjectRecord.object_id).subquery()
+                    ObjectRecord.object_id.cast(String).in_([literal(o.decode("utf-8")) for o in object_ids])).group_by(
+                    ObjectRecord.object_id_type, ObjectRecord.object_id).subquery()
+
+                # Load the contents corresponding to the max version
 
                 query = s.query(ObjectRecord).join(subquery, and_(
                     ObjectRecord.object_id_type == subquery.c.object_id_type,
@@ -76,16 +77,16 @@ class SqlStore(ObjectStore):
         records = ()
 
         with Session(self.__engine) as s:
-            entry_time = datetime.fromisoformat(next(iter(s.exec(select(self.__current_utc_time_sql)).first())))
-
-            transaction = Transactions(username=username, hostname=hostname, comment=comment, entry_time=entry_time)
+            transaction = Transactions(username=username, hostname=hostname, comment=comment)
             s.add(transaction)
             s.commit()
 
             for record in writes:
+                self.__add_type(record.object_id_type, s)
+
                 record.transaction_id = transaction.id
-                record.entry_time = entry_time
-                record.effective_time = min(entry_time, record.effective_time)
+                record.entry_time = transaction.entry_time
+                record.effective_time = min(transaction.entry_time, record.effective_time)
 
                 s.add(record)
                 records += (record,)
@@ -96,6 +97,20 @@ class SqlStore(ObjectStore):
                 s.refresh(record)
 
         return records
+
+    def __add_type(self, object_id_type: str, session: Session):
+        if self.__engine.dialect.name == "postgresql":
+            if object_id_type not in SQLModel.metadata.tables:
+                partition_stmt = text(fr"""
+                    CREATE TABLE IF NOT EXISTS "{object_id_type}"
+                    PARTITION OF objects
+                    FOR VALUES IN ('{object_id_type}')
+                """)
+
+                session.execute(partition_stmt)
+                session.commit()
+
+                SQLModel.metadata.reflect(self.__engine, only=(object_id_type,))
 
     def __create_schema(self):
         SQLModel.metadata.create_all(self.__engine)

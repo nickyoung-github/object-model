@@ -1,7 +1,6 @@
 from datetime import datetime
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import BLOB, Column, Field, Index, JSON, SQLModel
-from uuid import UUID, uuid4
+from sqlmodel import BLOB, Column, Field, Index, JSON, PrimaryKeyConstraint, SQLModel
 
 
 # ToDo: This uses SQL-specific bits, which will be ignored for non-SQL implementations.
@@ -12,7 +11,6 @@ JSONVariant = JSON().with_variant(JSONB, "postgresql").with_variant(BLOB, "sqlit
 
 
 class ObjectRecord(SQLModel, table=True):
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
     object_id: bytes = Field(sa_column=Column(JSONVariant))
     object_contents: bytes = Field(sa_column=Column(JSONVariant), default=bytes())
     transaction_id: int
@@ -26,13 +24,12 @@ class ObjectRecord(SQLModel, table=True):
     __tablename__ = "objects"
 
     __table_args__ = (
-        Index(
-            "idx_objects_by_version",
-            "object_type", "object_id", "effective_version", "entry_version",
-            unique=True
+        PrimaryKeyConstraint(
+            "object_id_type", "object_id", "effective_version", "entry_version",
         ),
         Index(
             "idx_objects_by_time",
             "effective_time", "entry_time", "object_type", "object_id", "effective_version", "entry_version"
-        )
+        ),
+        {"postgresql_partition_by": "LIST(object_id_type)"}
     )
