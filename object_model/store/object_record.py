@@ -31,5 +31,7 @@ class ObjectRecord(SQLModel, table=True):
             "idx_objects_by_time",
             "effective_time", "entry_time", "object_type", "object_id", "effective_version", "entry_version"
         ),
-        {"postgresql_partition_by": "LIST(object_id_type)"}
+        {
+            "postgresql_partition_by": "LIST(object_id_type)"
+        }
     )
