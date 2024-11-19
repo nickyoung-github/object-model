@@ -5,6 +5,7 @@ from sqlalchemy import Index, String, and_, create_engine, func, literal, select
 from sqlalchemy_utc import utcnow
 from sqlmodel import Field, SQLModel, Session
 from tempfile import NamedTemporaryFile
+from typing import Iterable
 
 from .store import ObjectStore
 from .object_record import ObjectRecord
@@ -27,8 +28,8 @@ class Transactions(SQLModel, table=True, keep_existing=True):
 
 
 class SqlStore(ObjectStore):
-    def __init__(self, connection_string: str, allow_temporary_types: bool, debug: bool = False):
-        super().__init__(allow_temporary_types)
+    def __init__(self, connection_string: str, check_schema: bool, allow_temporary_types: bool, debug: bool = False):
+        super().__init__(check_schema, allow_temporary_types)
         set_json_dumps(lambda x: x.decode("utf-8") if isinstance(x, bytes) else x)
         set_json_loads(lambda x: x)
         self.__existing_types: set[str] = set()
@@ -36,7 +37,7 @@ class SqlStore(ObjectStore):
         self.__engine = create_engine(connection_string, echo=debug)
         self.__create_schema()
 
-    def _execute_reads(self, reads: tuple[ObjectRecord, ...]) -> tuple[ObjectRecord, ...]:
+    def _execute_reads(self, reads: tuple[ObjectRecord, ...]) -> Iterable[ObjectRecord]:
         grouped_reads = {}
 
         for r in reads:
@@ -67,13 +68,13 @@ class SqlStore(ObjectStore):
                     ObjectRecord.entry_version == subquery.c.entry_version
                 ))
 
-                return tuple(query.all())
+                return query.all()
 
     def _execute_writes(self,
                         writes: tuple[ObjectRecord, ...],
                         username: str,
                         hostname: str,
-                        comment: str) -> tuple[ObjectRecord, ...]:
+                        comment: str) -> Iterable[ObjectRecord]:
         records = ()
 
         with Session(self.__engine) as s:
@@ -122,9 +123,9 @@ class SqlStore(ObjectStore):
 class TempStore(SqlStore):
     def __init__(self, debug: bool = False):
         self.__file = NamedTemporaryFile()
-        super().__init__(f"sqlite:///{self.__file.name}", True, debug=debug)
+        super().__init__(f"sqlite:///{self.__file.name}", False, True, debug=debug)
 
 
 class MemoryStore(SqlStore):
     def __init__(self, debug: bool = False):
-        super().__init__("sqlite+pysqlite:///:memory:", True, debug=debug)
+        super().__init__("sqlite+pysqlite:///:memory:", False, True, debug=debug)

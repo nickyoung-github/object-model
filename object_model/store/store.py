@@ -1,13 +1,17 @@
 from abc import ABC, abstractmethod
 from asyncio import Future
 import datetime as dt
+from jsonschema import validate
+from orjson import loads
 from os import geteuid
 from platform import uname
 from pwd import getpwuid
+from typing import Iterable
 
 from .exception import DBNotFoundError
 from .persistable import ImmutableMixin, ObjectRecord, PersistableMixin
-from .._type_registry import is_temporary_type
+from .._json import schema
+from .._type_registry import CLASS_TYPE_KEY, is_temporary_type
 
 
 class ObjectResult:
@@ -37,8 +41,10 @@ class ObjectResult:
 
 
 class ObjectStore(ABC):
-    def __init__(self, allow_temporary_types: bool):
+    def __init__(self, check_schema: bool, allow_temporary_types: bool):
         self.__allow_temporary_types = allow_temporary_types
+        self.__check_schema: bool = check_schema
+        self.__json_schema = {}
         self.__entered = False
         self.__username = getpwuid(geteuid()).pw_name
         self.__hostname = uname().node
@@ -61,7 +67,7 @@ class ObjectStore(ABC):
         self.__execute()
 
     @abstractmethod
-    def _execute_reads(self, reads: tuple[ObjectRecord, ...]) -> tuple[ObjectRecord, ...]:
+    def _execute_reads(self, reads: tuple[ObjectRecord, ...]) -> Iterable[ObjectRecord]:
         ...
 
     @abstractmethod
@@ -69,8 +75,31 @@ class ObjectStore(ABC):
                         writes: tuple[ObjectRecord, ...],
                         username: str,
                         hostname: str,
-                        comment: str) -> tuple[ObjectRecord, ...]:
+                        comment: str) -> Iterable[ObjectRecord]:
         ...
+
+    def _execute_writes_with_check(self,
+                                   writes: tuple[ObjectRecord, ...],
+                                   username: str,
+                                   hostname: str,
+                                   comment: str) -> Iterable[ObjectRecord]:
+        if self.__check_schema:
+            writes_by_type = {}
+
+            for write in writes:
+                writes_by_type.setdefault(write.object_id_type, []).append(loads(write.object_contents))
+
+            for typ, instances in writes_by_type.items():
+                if not self.__allow_temporary_types and is_temporary_type(typ):
+                    raise RuntimeError(f"Cannot persist temporary type {typ}")
+
+                if typ not in self.__json_schema["$defs"]:
+                    raise RuntimeError(f"Attempt to write unkknown type {typ}")
+
+                for instance in instances:
+                    validate(schema=self.__json_schema["$defs"][typ], instance=instance)
+
+        return self._execute_writes(writes, username, hostname, comment)
 
     def read(self,
              typ: type[PersistableMixin],
@@ -94,9 +123,6 @@ class ObjectStore(ABC):
         return result
 
     def write(self, obj: PersistableMixin, as_of_effective_time: bool = False) -> Future[bool]:
-        if not self.__allow_temporary_types and is_temporary_type(type(obj)):
-            raise RuntimeError(f"Cannot persist temporary type {type(obj)}")
-
         if (as_of_effective_time or obj.entry_version > 1) and isinstance(obj, ImmutableMixin):
             raise RuntimeError(f"Cannot update immutable objects")
 
@@ -117,6 +143,12 @@ class ObjectStore(ABC):
             self.__execute()
 
         return ret
+
+    def register(self, typ: type[PersistableMixin]):
+        type_schema = schema(typ)
+        defs = type_schema.pop("$defs", {})
+        defs[getattr(typ, CLASS_TYPE_KEY)] = type_schema
+        self.__json_schema.update(defs)
 
     def __execute(self):
         try:
