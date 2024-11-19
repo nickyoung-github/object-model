@@ -59,15 +59,17 @@ class TypeCheckMixin:
         for name, typ in annotations.items():
             annotations[name] = check_type(name, typ)
 
-        if TYPE_KEY not in annotations:
-            annotations[TYPE_KEY] = Literal[cls_name]
-            namespace[TYPE_KEY] = field(default_factory=lambda: cls_name, init=False)
+        registered_name = annotations.get(TYPE_KEY)
+
+        if not registered_name:
+            registered_name = cls_name
+            annotations[TYPE_KEY] = Literal[registered_name]
+            namespace[TYPE_KEY] = field(default_factory=lambda: registered_name, init=False)
 
         annotations[CLASS_TYPE_KEY] = ClassVar[str]
-        namespace[CLASS_TYPE_KEY] = cls_name
+        namespace[CLASS_TYPE_KEY] = registered_name
 
         ret = super().__new__(cls, cls_name, bases, namespace, **kwargs)
         register_type(ret)
 
         return ret
-
