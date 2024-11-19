@@ -5,7 +5,7 @@ from datetime import datetime
 from functools import cached_property
 from hashlib import sha3_512
 
-from .store_types import ObjectRecord
+from .object_record import ObjectRecord
 from .._descriptors import Id
 from .._json import dumps, loads
 from .._type_registry import CLASS_TYPE_KEY, TYPE_KEY

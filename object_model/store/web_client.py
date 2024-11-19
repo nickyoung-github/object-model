@@ -3,9 +3,9 @@ from typing import Any
 
 from .._json import dumps, loads, schema
 
-from .store_types import ObjectRecord
+from .object_record import ObjectRecord
 from .persistable import PersistableMixin
-from .store import ObjectStore
+from .object_store import ObjectStore
 
 
 class WebStoreClient(ObjectStore):
