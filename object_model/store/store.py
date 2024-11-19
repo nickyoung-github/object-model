@@ -144,7 +144,7 @@ class ObjectStore(ABC):
 
         return ret
 
-    def register(self, typ: type[PersistableMixin]):
+    def register_schema(self, typ: type[PersistableMixin]):
         type_schema = schema(typ)
         defs = type_schema.pop("$defs", {})
         defs[getattr(typ, CLASS_TYPE_KEY)] = type_schema
