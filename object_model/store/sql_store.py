@@ -7,7 +7,7 @@ from sqlmodel import Field, SQLModel, Session
 from tempfile import NamedTemporaryFile
 from typing import Iterable
 
-from .object_store import ObjectStore
+from .object_store import ObjectStore, ReadRequest, WriteRequest
 from .object_record import ObjectRecord
 
 
@@ -31,10 +31,10 @@ class SqlStore(ObjectStore):
         self.__is_partitioned = self.__engine.dialect.name == "postgresql"
         self.__create_schema()
 
-    def _execute_reads(self, reads: tuple[ObjectRecord, ...]) -> Iterable[ObjectRecord]:
+    def _execute_reads(self, reads: ReadRequest) -> Iterable[ObjectRecord]:
         grouped_reads = {}
 
-        for r in reads:
+        for r in reads.reads:
             grouped_reads.setdefault((r.object_id_type, r.effective_time, r.entry_time), []).append(r.object_id)
 
         with Session(self.__engine) as s:
@@ -64,19 +64,15 @@ class SqlStore(ObjectStore):
 
                 return query.all()
 
-    def _execute_writes(self,
-                        writes: tuple[ObjectRecord, ...],
-                        username: str,
-                        hostname: str,
-                        comment: str) -> Iterable[ObjectRecord]:
+    def _execute_writes(self, writes: WriteRequest) -> Iterable[ObjectRecord]:
         records = ()
 
         with Session(self.__engine) as s:
-            transaction = Transactions(username=username, hostname=hostname, comment=comment)
+            transaction = Transactions(username=writes.username, hostname=writes.hostname, comment=writes.comment)
             s.add(transaction)
             s.commit()
 
-            for record in writes:
+            for record in writes.writes:
                 self.__add_type(record.object_id_type, s)
 
                 record.transaction_id = transaction.id

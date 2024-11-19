@@ -1,26 +1,10 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
 from typing import Iterable
 import uvicorn
 
-from object_model.store.persistable import ObjectRecord
+from object_model.store.object_record import ObjectRecord
+from object_model.store.object_store import ReadRequest, RegisterSchemaRequest, WriteRequest
 from object_model.store import MemoryStore
-
-
-class ReadRequest(BaseModel):
-    reads: tuple[ObjectRecord, ...]
-
-
-class WriteRequest(BaseModel):
-    writes: tuple[ObjectRecord, ...]
-    username: str
-    hostname: str
-    comment: str
-
-
-class RegisterSchemaRequest(BaseModel):
-    name: str
-    json_schema: dict
 
 
 app = FastAPI()
@@ -29,18 +13,18 @@ db = MemoryStore()  # Use the actual DB here
 
 @app.post("/read/")
 async def read(request: ReadRequest) -> Iterable[ObjectRecord]:
-    return db._execute_reads(request.reads)
+    return db._execute_reads(request)
 
 
 @app.post("/write/")
 async def write(request: WriteRequest) -> Iterable[ObjectRecord]:
     # ToDo: This isn't quite right - we should have a single schema, to avoid duplication of referenced types
-    return db._execute_writes_with_check(request.writes, request.username, request.hostname, request.comment)
+    return db._execute_writes_with_check(request)
 
 
 @app.post("/register/")
 async def register(request: RegisterSchemaRequest):
-    db.register_schema(request.name, request.json_schema)
+    db.register_schema(request)
 
 
 if __name__ == "__main__":

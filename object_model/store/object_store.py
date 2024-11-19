@@ -5,14 +5,31 @@ from jsonschema import validate
 from orjson import loads
 from os import geteuid
 from platform import uname
+from pydantic import BaseModel
 from pwd import getpwuid
-from typing import Any, Iterable
+from typing import Iterable
 
 from . import ObjectResult
 from .exception import DBNotFoundError
 from .persistable import ImmutableMixin, ObjectRecord, PersistableMixin
 from .._json import schema
 from .._type_registry import CLASS_TYPE_KEY, is_temporary_type
+
+
+class ReadRequest(BaseModel):
+    reads: tuple[ObjectRecord, ...]
+
+
+class WriteRequest(BaseModel):
+    writes: tuple[ObjectRecord, ...]
+    username: str
+    hostname: str
+    comment: str
+
+
+class RegisterSchemaRequest(BaseModel):
+    name: str
+    json_schema: dict
 
 
 class ObjectStore(ABC):
@@ -42,26 +59,18 @@ class ObjectStore(ABC):
         self.__execute()
 
     @abstractmethod
-    def _execute_reads(self, reads: tuple[ObjectRecord, ...]) -> Iterable[ObjectRecord]:
+    def _execute_reads(self, reads: ReadRequest) -> Iterable[ObjectRecord]:
         ...
 
     @abstractmethod
-    def _execute_writes(self,
-                        writes: tuple[ObjectRecord, ...],
-                        username: str,
-                        hostname: str,
-                        comment: str) -> Iterable[ObjectRecord]:
+    def _execute_writes(self, writes: WriteRequest) -> Iterable[ObjectRecord]:
         ...
 
-    def _execute_writes_with_check(self,
-                                   writes: tuple[ObjectRecord, ...],
-                                   username: str,
-                                   hostname: str,
-                                   comment: str) -> Iterable[ObjectRecord]:
+    def _execute_writes_with_check(self, writes: WriteRequest) -> Iterable[ObjectRecord]:
         if self.__check_schema:
             writes_by_type = {}
 
-            for write in writes:
+            for write in writes.writes:
                 writes_by_type.setdefault(write.object_id_type, []).append(loads(write.object_contents))
 
             for typ, instances in writes_by_type.items():
@@ -74,7 +83,7 @@ class ObjectStore(ABC):
                 for instance in instances:
                     validate(schema=self.__json_schema["$defs"][typ], instance=instance)
 
-        return self._execute_writes(writes, username, hostname, comment)
+        return self._execute_writes(writes)
 
     def read(self,
              typ: type[PersistableMixin],
@@ -119,17 +128,20 @@ class ObjectStore(ABC):
         return ret
 
     def register_type(self, typ: type[PersistableMixin]):
-        self.register_schema(getattr(typ, CLASS_TYPE_KEY), schema(typ))
+        self.register_schema(RegisterSchemaRequest(name=getattr(typ, CLASS_TYPE_KEY), json_schema=schema(typ)))
 
-    def register_schema(self, name, json_schema: dict[str, Any]):
-        defs = json_schema.pop("$defs", {})
-        defs[name] = json_schema
+    def register_schema(self, request: RegisterSchemaRequest):
+        defs = request.json_schema.pop("$defs", {})
+        defs[request.name] = request.json_schema
         self.__json_schema.update(defs)
 
     def __execute(self):
         try:
             if self.__pending_writes:
-                records = self._execute_writes(self.__pending_writes, self.__username, self.__hostname, self.__comment)
+                records = self._execute_writes(WriteRequest(writes=self.__pending_writes,
+                                                            username=self.__username,
+                                                            hostname=self.__hostname,
+                                                            comment=self.__comment))
 
                 for record in records:
                     obj = self.__written_objects.pop((record.object_id_type, record.object_id))
@@ -144,7 +156,7 @@ class ObjectStore(ABC):
         else:
             try:
                 if self.__pending_reads:
-                    records = self._execute_reads(self.__pending_reads)
+                    records = self._execute_reads(ReadRequest(reads=self.__pending_reads))
 
                     for record in records:
                         result = self.__read_results.pop((record.object_id_type, record.object_id))
