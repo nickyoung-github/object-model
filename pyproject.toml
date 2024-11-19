@@ -26,10 +26,12 @@ dependencies = [
     "frozendict",
     "jsonschema",
     "orjson",
+    "psycopg",
     "pydantic",
     "requests",
     "setuptools",
     "sqlalchemy",
+    "sqlalchemy-utc",
     "sqlmodel",
     "uvicorn"
 ]
