@@ -8,36 +8,11 @@ from platform import uname
 from pwd import getpwuid
 from typing import Iterable
 
+from . import ObjectResult
 from .exception import DBNotFoundError
 from .persistable import ImmutableMixin, ObjectRecord, PersistableMixin
 from .._json import schema
 from .._type_registry import CLASS_TYPE_KEY, is_temporary_type
-
-
-class ObjectResult:
-    def __init__(self):
-        self.__future = Future()
-
-    @property
-    def value(self):
-        return self.__future.result()
-
-    @property
-    async def value_a(self):
-        return self.__future
-
-    @property
-    def done(self) -> bool:
-        return self.__future.done()
-
-    def add_done_callback(self, fn):
-        self.__future.add_done_callback(fn)
-
-    def set_result(self, result: PersistableMixin):
-        self.__future.set_result(result)
-
-    def set_exception(self, exception: Exception):
-        self.__future.set_exception(exception)
 
 
 class ObjectStore(ABC):
@@ -130,10 +105,9 @@ class ObjectStore(ABC):
                               object_id_type=obj.object_id_type,
                               object_id=obj.object_id,
                               object_contents=obj.object_contents,
-                              effective_version=obj.effective_version if as_of_effective_time else obj.effective_version + 1,
+                              effective_version=obj.effective_version + (0 if as_of_effective_time else 1),
                               entry_version=obj.entry_version + 1 if as_of_effective_time else 1,
-                              effective_time=obj.effective_time if as_of_effective_time else dt.datetime.max,
-                              entry_time=dt.datetime.max)
+                              effective_time=obj.effective_time if as_of_effective_time else dt.datetime.max)
 
         self.__pending_writes += (record,)
         self.__written_objects[(obj.object_id_type, obj.object_id)] = obj

@@ -3,7 +3,7 @@ from typing import Any
 
 from .._json import dumps, loads, schema
 
-from .object_record import ObjectRecord
+from .store_types import ObjectRecord
 from .persistable import PersistableMixin
 from .store import ObjectStore
 

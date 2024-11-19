@@ -5,6 +5,6 @@ from .exception import (
     DBNotFoundError,
     DBUnknownError
 )
-from .store import ObjectResult
+from .store_types import ObjectResult
 from .sql import MemoryStore, SqlStore, TempStore
 from .web_client import WebStoreClient

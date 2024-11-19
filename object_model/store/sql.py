@@ -8,7 +8,7 @@ from tempfile import NamedTemporaryFile
 from typing import Iterable
 
 from .store import ObjectStore
-from .object_record import ObjectRecord
+from .store_types import ObjectRecord
 
 
 class Transactions(SQLModel, table=True, keep_existing=True):
