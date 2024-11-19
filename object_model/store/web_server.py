@@ -18,7 +18,6 @@ async def read(request: ReadRequest) -> Iterable[ObjectRecord]:
 
 @app.post("/write/")
 async def write(request: WriteRequest) -> Iterable[ObjectRecord]:
-    # ToDo: This isn't quite right - we should have a single schema, to avoid duplication of referenced types
     return db._execute_writes_with_check(request)
 
 
