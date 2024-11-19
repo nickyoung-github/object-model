@@ -18,14 +18,13 @@ class WriteRequest(BaseModel):
     comment: str
 
 
-class RegisterTypeRequest(BaseModel):
+class RegisterSchemaRequest(BaseModel):
     name: str
     json_schema: dict
 
 
 app = FastAPI()
-db = MemoryStore()
-schemas: dict[str, dict] = {}
+db = MemoryStore()  # Use the actual DB here
 
 
 @app.post("/read/")
@@ -37,6 +36,11 @@ async def read(request: ReadRequest) -> Iterable[ObjectRecord]:
 async def write(request: WriteRequest) -> Iterable[ObjectRecord]:
     # ToDo: This isn't quite right - we should have a single schema, to avoid duplication of referenced types
     return db._execute_writes_with_check(request.writes, request.username, request.hostname, request.comment)
+
+
+@app.post("/register/")
+async def register(request: RegisterSchemaRequest):
+    db.register_schema(request.name, request.json_schema)
 
 
 if __name__ == "__main__":

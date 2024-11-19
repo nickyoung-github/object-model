@@ -6,7 +6,7 @@ from orjson import loads
 from os import geteuid
 from platform import uname
 from pwd import getpwuid
-from typing import Iterable
+from typing import Any, Iterable
 
 from . import ObjectResult
 from .exception import DBNotFoundError
@@ -118,10 +118,12 @@ class ObjectStore(ABC):
 
         return ret
 
-    def register_schema(self, typ: type[PersistableMixin]):
-        type_schema = schema(typ)
-        defs = type_schema.pop("$defs", {})
-        defs[getattr(typ, CLASS_TYPE_KEY)] = type_schema
+    def register_type(self, typ: type[PersistableMixin]):
+        self.register_schema(getattr(typ, CLASS_TYPE_KEY), schema(typ))
+
+    def register_schema(self, name, json_schema: dict[str, Any]):
+        defs = json_schema.pop("$defs", {})
+        defs[name] = json_schema
         self.__json_schema.update(defs)
 
     def __execute(self):
