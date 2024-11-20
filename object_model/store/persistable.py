@@ -18,6 +18,9 @@ class UseDerived:
 
 class PersistableMixin:
     def __init__(self):
+        if self.id[0] is UseDerived:
+            raise RuntimeError(f"Class {type(self)} cannot be constructed")
+
         # This mixin is used by frozen dataclasses, which stop you setting private members (annoyingly)
         self.__init(datetime.max, datetime.max, 0, 0)
 
