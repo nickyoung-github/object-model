@@ -30,7 +30,7 @@ class BaseModel(PydanticBaseModel, ReplaceMixin, metaclass=__ModelMetaclass):
 
 
 class PersistableModel(BaseModel, PersistableMixin):
-    id: ClassVar[Id] = Id(typ=UseDerived)
+    id: ClassVar[Id] = Id()
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:

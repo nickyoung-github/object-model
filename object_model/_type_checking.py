@@ -46,8 +46,6 @@ def check_type(fld: str, typ: Any) -> Any:
         if len(object_types) > 1:
             return Union[base_types + DiscriminatedUnion[object_types]] if base_types else\
                 DiscriminatedUnion[object_types]
-        elif base_types:
-            return Union[base_types]
 
     return typ
 

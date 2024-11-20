@@ -31,7 +31,7 @@ class Base(ReplaceMixin, metaclass=__BaseMetaClass):
 
 @dataclass(frozen=True)
 class Persistable(Base, PersistableMixin):
-    id: ClassVar[Id] = Id(typ=UseDerived)
+    id: ClassVar[Id] = Id()
 
     def __init_subclass__(cls, **kwargs):
         if "__init_subclass__" in cls.__dict__:
