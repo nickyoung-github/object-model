@@ -32,10 +32,9 @@ The name can be overridden to avoid collisions. Type names are registered in the
 entry points under the group `object-store`. This serves as a registry of types and allows
 the implementation to be moved without needing to load and re-write persisted objects.
 
-Pydantic's json serialisation does not provide a mechanism to serialise a member whose
-value is a subclass of the specified type (or not out of the box). `object-model` provides
-a `Subclass` type, which expands to a discriminated union, with this type field as 
-the discriminator.
+Pydantic's json serialisation does not natively provide a mechanism to serialise a member whose
+type is a subclass of the specified type. `object-model` provides a `Subclass` type, which expands
+to a discriminated union, with this type field as the discriminator.
 
 This is represented in JSON Schema as a `OneOf` and allows such subclasses to be validated
 against the schema.
@@ -43,10 +42,10 @@ against the schema.
 ## Persistence
 Data model objects need to be persistable. `object-model` provides:
 
-- a bi-temporal schema with jsonb-based serialisation of the objects
+- a bi-temporal schema with JSON/JSONB-based serialisation of the objects
 - partitioning of objects by type (where the DB supports it), allowing each type to be indexed appropriately
 - a simple mechanism for defining object IDs
-- Sql and REST implementations of an object store
+- SQL and REST implementations of an object store
 
 ### ID
 `Id` is a descriptor field applied as a `ClassVar`. At class-level it specifies the
