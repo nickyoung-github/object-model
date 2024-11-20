@@ -1,5 +1,5 @@
+import atexit
 from datetime import datetime
-
 from psycopg.types.json import set_json_dumps, set_json_loads
 from sqlalchemy import String, and_, create_engine, func, literal, select, text
 from sqlalchemy.exc import IntegrityError
@@ -136,15 +136,16 @@ class SqlStore(ObjectStore):
                 self.__id = next(iter(s.exec(select(Id.id)).first()))
 
 
-class TempStore(SqlStore):
-    def __init__(self, debug: bool = False):
-        self.__file = NamedTemporaryFile()
-        super().__init__(f"sqlite:///{self.__file.name}", False, True, debug=debug)
-
-
 class LocalStore(SqlStore):
     def __init__(self, filename: str, debug: bool = False):
         super().__init__(f"sqlite:///{filename}", False, True, debug=debug)
+
+
+class TempStore(LocalStore):
+    def __init__(self, debug: bool = False):
+        self.__file = NamedTemporaryFile()
+        atexit.register(lambda f: f.close(), self.__file)
+        super().__init__(self.__file.name, debug=debug)
 
 
 class MemoryStore(SqlStore):
