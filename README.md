@@ -27,13 +27,15 @@ a simple API for handling both styles.
 Input validation only truly works on pydantic objects but all else works on both.
 
 ## Serialising Subclasses
-The `Base` and `BaseModel` types automatically add the object's type path (module path
-plus name) to the serialised output.
+The `Base` and `BaseModel` types automatically add the object's name to the serialised output.
+The name can be overridden to avoid collisions. Type names are registered in the project's
+entry points under the group `object-store`. This serves as a registry of types and allows
+the implementation to be moved without needing to load and re-write persisted objects.
 
 Pydantic's json serialisation does not provide a mechanism to serialise a member whose
 value is a subclass of the specified type (or not out of the box). `object-model` provides
-a `Subclass` type, which expands to a discriminated union, with this tpye field as 
-the discrimintor.
+a `Subclass` type, which expands to a discriminated union, with this type field as 
+the discriminator.
 
 This is represented in JSON Schema as a `OneOf` and allows such subclasses to be validated
 against the schema.
@@ -44,7 +46,7 @@ Data model objects need to be persistable. `object-model` provides:
 - a bi-temporal schema with jsonb-based serialisation of the objects
 - partitioning of objects by type (where the DB supports it), allowing each type to be indexed appropriately
 - a simple mechanism for defining object IDs
-- Postgres, Sqlite and REST implementations of an object store
+- Sql and REST implementations of an object store
 
 ### ID
 `Id` is a descriptor field applied as a `ClassVar`. At class-level it specifies the
