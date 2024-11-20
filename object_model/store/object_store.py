@@ -66,6 +66,14 @@ class ObjectStore(ABC):
     def _execute_writes(self, writes: WriteRequest) -> Iterable[ObjectRecord]:
         ...
 
+    @property
+    def allow_temporary_types(self) -> bool:
+        return self.__allow_temporary_types
+
+    @property
+    def check_schema(self) -> bool:
+        return self.__check_schema
+
     def _execute_writes_with_check(self, writes: WriteRequest) -> Iterable[ObjectRecord]:
         if self.__check_schema:
             writes_by_type = {}

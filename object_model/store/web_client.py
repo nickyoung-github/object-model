@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from requests import Session, codes
+from typing import Iterable
 
 from .._json import dumps, loads
 
@@ -13,10 +14,10 @@ class WebStoreClient(ObjectStore):
         self.__base_url = base_url
         self.__session = Session()
 
-    def _execute_reads(self, reads: ReadRequest) -> tuple[ObjectRecord, ...]:
+    def _execute_reads(self, reads: ReadRequest) -> Iterable[ObjectRecord]:
         return self.__post("read", reads)
 
-    def _execute_writes(self, writes: WriteRequest) -> tuple[ObjectRecord, ...]:
+    def _execute_writes(self, writes: WriteRequest) -> Iterable[ObjectRecord]:
         return self.__post("write", writes)
 
     def register_schema(self, json_schema: RegisterSchemaRequest):

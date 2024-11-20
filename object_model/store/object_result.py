@@ -19,6 +19,10 @@ class ObjectResult:
     def done(self) -> bool:
         return self.__future.done()
 
+    @property
+    def valid(self) -> bool:
+        return self.__future.exception() is None
+
     def add_done_callback(self, fn):
         self.__future.add_done_callback(fn)
 

@@ -1,7 +1,7 @@
 from datetime import date
 from time import sleep
 
-from object_model.store import FailedUpdateError, MemoryStore, WrongStoreError
+from object_model.store import FailedUpdateError, MemoryStore, UnionStore, WrongStoreError
 
 from .shared_pydantic_types import Container, Container2, Container3, Nested, Outer
 
@@ -104,3 +104,19 @@ def test_multiple_store_write():
         assert True
     else:
         assert False
+
+
+def test_union_store():
+    db1 = MemoryStore()
+    db2 = MemoryStore()
+    u = UnionStore((db1, db2))
+
+    c3_1 = Container3(name="container3", contents={"foo": 1}, rank=1, date=date.today())
+    db1.write(c3_1)
+
+    sleep(0.5)
+
+    c3_2 = Container3(name="container3", contents={"foo": 1}, rank=2, date=date.today())
+    db2.write(c3_2)
+
+    assert u.read(Container3, "container3").value == c3_2
