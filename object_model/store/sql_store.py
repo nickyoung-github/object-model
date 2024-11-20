@@ -33,7 +33,7 @@ class SqlStore(ObjectStore):
         set_json_loads(lambda x: x)
 
         self.__existing_types: set[str] = set()
-        self.__min_entry_time: datetime = datetime.min
+        self.__min_entry_time: datetime = datetime.max
         self.__id = None
         self.__engine = create_engine(connection_string, echo=debug)
         self.__is_partitioned = self.__engine.dialect.name == "postgresql"
@@ -140,6 +140,11 @@ class TempStore(SqlStore):
     def __init__(self, debug: bool = False):
         self.__file = NamedTemporaryFile()
         super().__init__(f"sqlite:///{self.__file.name}", False, True, debug=debug)
+
+
+class LocalStore(SqlStore):
+    def __init__(self, filename: str, debug: bool = False):
+        super().__init__(f"sqlite:///{filename}", False, True, debug=debug)
 
 
 class MemoryStore(SqlStore):

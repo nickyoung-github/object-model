@@ -5,6 +5,6 @@ from .exception import (
     WrongStoreError
 )
 from .object_result import ObjectResult
-from .sql_store import MemoryStore, SqlStore, TempStore
+from .sql_store import LocalStore, MemoryStore, SqlStore, TempStore
 from .union_store import UnionStore
 from .web_client import WebStoreClient
