@@ -10,7 +10,7 @@ from pwd import getpwuid
 from typing import Iterable
 
 from . import ObjectResult
-from .exception import DBNotFoundError
+from .exception import NotFoundError
 from .persistable import ImmutableMixin, ObjectRecord, PersistableMixin
 from .._json import schema
 from .._type_registry import CLASS_TYPE_KEY, is_temporary_type
@@ -116,7 +116,8 @@ class ObjectStore(ABC):
                               object_contents=obj.object_contents,
                               effective_version=obj.effective_version + (0 if as_of_effective_time else 1),
                               entry_version=obj.entry_version + 1 if as_of_effective_time else 1,
-                              effective_time=obj.effective_time if as_of_effective_time else dt.datetime.max)
+                              effective_time=obj.effective_time if as_of_effective_time else dt.datetime.max,
+                              object_store_id=obj.object_store_id)
 
         self.__pending_writes += (record,)
         self.__written_objects[(obj.object_id_type, obj.object_id)] = obj
@@ -164,7 +165,7 @@ class ObjectStore(ABC):
 
                     while self.__read_results:
                         _, result = self.__read_results.popitem()
-                        result.set_exception(DBNotFoundError())
+                        result.set_exception(NotFoundError())
             except Exception as e:
                 while self.__read_results:
                     _, result = self.__read_results.popitem()

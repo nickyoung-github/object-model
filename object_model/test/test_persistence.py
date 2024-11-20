@@ -1,7 +1,7 @@
 from datetime import date
 from time import sleep
 
-from object_model.store import MemoryStore
+from object_model.store import FailedUpdateError, MemoryStore, WrongStoreError
 
 from .shared_pydantic_types import Container, Container2, Container3, Nested, Outer
 
@@ -70,3 +70,37 @@ def test_load_via_base():
 
     c = db.read(Container, "container3").value
     assert c == c3
+
+
+def test_version_checking():
+    c3 = Container3(name="container3", contents={"foo": 1}, rank=2, date=date.today())
+    db = MemoryStore()
+
+    assert db.write(c3).result()
+    assert db.write(c3).result()
+
+    c3_1 = Container3(name="container3", contents={"foo": 1}, rank=2, date=date.today())
+
+    try:
+        # This should fail due to a version and resulting integrity check
+        db.write(c3_1).result()
+    except FailedUpdateError:
+        assert True
+    else:
+        assert False
+
+
+def test_multiple_store_write():
+    c3 = Container3(name="container3", contents={"foo": 1}, rank=2, date=date.today())
+    db1 = MemoryStore()
+    db2 = MemoryStore()
+
+    assert db1.write(c3).result()
+    assert db1.write(c3).result()
+
+    try:
+        db2.write(c3).result()
+    except WrongStoreError:
+        assert True
+    else:
+        assert False

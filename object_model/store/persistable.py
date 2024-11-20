@@ -4,6 +4,7 @@ from abc import abstractmethod
 from datetime import datetime
 from functools import cached_property
 from hashlib import sha3_512
+from uuid import UUID
 
 from .object_record import ObjectRecord
 from .._descriptors import Id
@@ -35,6 +36,10 @@ class PersistableMixin:
     @property
     def entry_version(self) -> int:
         return self.__entry_version
+
+    @property
+    def object_store_id(self) -> UUID | None:
+        return self.__object_store_id
 
     @property
     @abstractmethod
@@ -109,13 +114,16 @@ class PersistableMixin:
         return ret
 
     def init_from_record(self, record: ObjectRecord):
-        self.__init(record.effective_time, record.entry_time, record.effective_version, record.entry_version)
+        self.__init(record.effective_time, record.entry_time, record.effective_version, record.entry_version,
+                    record.object_store_id)
 
-    def __init(self, effective_time: datetime, entry_time: datetime, effective_version: int, entry_version: int):
+    def __init(self, effective_time: datetime, entry_time: datetime, effective_version: int, entry_version: int,
+               object_store_id: UUID | None = None):
         object.__setattr__(self, "_PersistableMixin__effective_time", effective_time)
         object.__setattr__(self, "_PersistableMixin__entry_time", entry_time)
         object.__setattr__(self, "_PersistableMixin__effective_version", effective_version)
         object.__setattr__(self, "_PersistableMixin__entry_version", entry_version)
+        object.__setattr__(self, "_PersistableMixin__object_store_id", object_store_id)
 
 
 class ImmutableMixin:

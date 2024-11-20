@@ -1,6 +1,7 @@
 from datetime import datetime
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import BLOB, Column, Field, Index, JSON, PrimaryKeyConstraint, SQLModel
+from uuid import UUID
 
 # ToDo: This uses SQL-specific bits, which will be ignored for non-SQL implementations.
 #       It's either that or duplication ...
@@ -9,6 +10,7 @@ JSONVariant = JSON().with_variant(JSONB, "postgresql").with_variant(BLOB, "sqlit
 
 
 class ObjectRecord(SQLModel, table=True):
+    object_store_id: UUID | None = None
     object_id: bytes = Field(sa_column=Column(JSONVariant))
     object_contents: bytes = Field(sa_column=Column(JSONVariant), default=bytes())
     transaction_id: int = -1

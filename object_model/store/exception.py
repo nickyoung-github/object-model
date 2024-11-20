@@ -1,7 +1,7 @@
 from abc import abstractmethod
 
 
-class DBError(Exception):
+class ObjectStoreError(Exception):
     def __init__(self, message: str = None):
         super().__init__(message or self.message())
 
@@ -11,13 +11,7 @@ class DBError(Exception):
         ...
 
 
-class DBDuplicateWriteError(DBError):
-    @classmethod
-    def message(cls) -> str:
-        return "Attempt write an object multiple times in the same transaction"
-
-
-class DBFailedUpdateError(DBError):
+class FailedUpdateError(ObjectStoreError):
     @classmethod
     def message(cls) -> str:
         return r"""
@@ -29,17 +23,20 @@ class DBFailedUpdateError(DBError):
         """
 
 
-class DBNotFoundError(DBError):
+class NotFoundError(ObjectStoreError):
     @classmethod
     def message(cls) -> str:
         return "No object found"
 
 
-class DBUnknownError(DBError):
-    def __init__(self, native_exception: Exception):
-        super().__init__(f"{self.message()} - native exception was {native_exception}")
+class WrongStoreError(ObjectStoreError):
+    def __init__(self, object_type: str, object_id: bytes):
+        message = f"""Attempting to save object {object_type}:{object_id.decode("utf-8")}
+                      in a different store to the one from which it was loaded"""
+        super().__init__(message)
 
     @classmethod
     def message(cls) -> str:
-        return f"Unknown error"
+        return ""
+
 

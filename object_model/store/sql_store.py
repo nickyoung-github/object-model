@@ -2,16 +2,23 @@ from datetime import datetime
 
 from psycopg.types.json import set_json_dumps, set_json_loads
 from sqlalchemy import String, and_, create_engine, func, literal, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy_utc import utcnow
 from sqlmodel import Field, SQLModel, Session
 from tempfile import NamedTemporaryFile
 from typing import Iterable
+from uuid import UUID, uuid4
 
+from .exception import FailedUpdateError, WrongStoreError
 from .object_store import ObjectStore, ReadRequest, WriteRequest
 from .object_record import ObjectRecord
 
 
-class Transactions(SQLModel, table=True, keep_existing=True):
+class Id(SQLModel, table=True):
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+
+
+class Transactions(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
     entry_time: datetime = Field(default=None, index=True, sa_column_kwargs={"server_default": utcnow()})
     username: str
@@ -27,6 +34,7 @@ class SqlStore(ObjectStore):
 
         self.__existing_types: set[str] = set()
         self.__min_entry_time: datetime = datetime.min
+        self.__id = None
         self.__engine = create_engine(connection_string, echo=debug)
         self.__is_partitioned = self.__engine.dialect.name == "postgresql"
         self.__create_schema()
@@ -73,16 +81,23 @@ class SqlStore(ObjectStore):
             s.commit()
 
             for record in writes.writes:
+                if record.object_store_id and record.object_store_id != self.__id:
+                    raise WrongStoreError(record.object_type, record.object_id)
+
                 self.__add_type(record.object_id_type, s)
 
                 record.transaction_id = transaction.id
                 record.entry_time = transaction.entry_time
                 record.effective_time = min(transaction.entry_time, record.effective_time)
+                record.object_store_id = self.__id
 
                 s.add(record)
                 records += (record,)
 
-            s.commit()
+            try:
+                s.commit()
+            except IntegrityError:
+                raise FailedUpdateError()
 
             for record in records:
                 s.refresh(record)
@@ -107,7 +122,18 @@ class SqlStore(ObjectStore):
         SQLModel.metadata.create_all(self.__engine)
 
         with Session(self.__engine) as s:
-            self.__min_entry_time = next(iter(s.exec(select(func.min(Transactions.entry_time))).first()), datetime.max)
+            self.__min_entry_time = next(iter(s.exec(select(func.min(Transactions.entry_time))).first())) or\
+                                    datetime.max
+
+            if self.__min_entry_time == datetime.max:
+                # It's a new DB, set the ID
+                object_store_id = Id()
+                s.add(object_store_id)
+                s.commit()
+                s.refresh(object_store_id)
+                self.__id = object_store_id.id
+            else:
+                self.__id = next(iter(s.exec(select(Id.id)).first()))
 
 
 class TempStore(SqlStore):
