@@ -1,7 +1,7 @@
 import atexit
 from datetime import datetime
 from psycopg.types.json import set_json_dumps, set_json_loads
-from sqlalchemy import String, and_, create_engine, func, literal, select, text
+from sqlalchemy import String, and_, create_engine, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy_utc import utcnow
 from sqlmodel import Field, SQLModel, Session
@@ -58,7 +58,7 @@ class SqlStore(ObjectStore):
                     ObjectRecord.effective_time <= effective_time,
                     ObjectRecord.entry_time <= entry_time,
                     ObjectRecord.object_id_type == object_id_type,
-                    ObjectRecord.object_id.cast(String).in_([literal(o.decode("utf-8")) for o in object_ids])).group_by(
+                    ObjectRecord.object_id.cast(String).in_(o.decode("utf-8") for o in object_ids)).group_by(
                         ObjectRecord.object_id_type, ObjectRecord.object_id).subquery()
 
                 # Load the contents corresponding to the max version
@@ -105,18 +105,17 @@ class SqlStore(ObjectStore):
         return records
 
     def __add_type(self, object_id_type: str, session: Session):
-        if self.__is_partitioned:
-            if object_id_type not in SQLModel.metadata.tables:
-                partition_stmt = text(fr"""
-                    CREATE TABLE IF NOT EXISTS "{object_id_type}"
-                    PARTITION OF objects
-                    FOR VALUES IN ('{object_id_type}')
-                """)
+        if self.__is_partitioned and object_id_type not in SQLModel.metadata.tables:
+            partition_stmt = text(fr"""
+                CREATE TABLE IF NOT EXISTS "{object_id_type}"
+                PARTITION OF objects
+                FOR VALUES IN ('{object_id_type}')
+            """)
 
-                session.execute(partition_stmt)
-                session.commit()
+            session.execute(partition_stmt)
+            session.commit()
 
-                SQLModel.metadata.reflect(self.__engine, only=(object_id_type,))
+            SQLModel.metadata.reflect(self.__engine, only=(object_id_type,))
 
     def __create_schema(self):
         SQLModel.metadata.create_all(self.__engine)
