@@ -5,7 +5,6 @@ from jsonschema import validate
 from orjson import loads
 from platform import system, uname
 from pydantic import BaseModel
-from pwd import getpwuid
 from typing import Iterable
 
 from . import ObjectResult
@@ -21,6 +20,7 @@ def _get_user_name():
         return win32api.GetUserName()
     else:
         from os import geteuid
+        from pwd import getpwuid
         return getpwuid(geteuid()).pw_name
 
 
