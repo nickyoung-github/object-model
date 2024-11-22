@@ -4,7 +4,7 @@ import datetime as dt
 from jsonschema import validate
 from orjson import loads
 from os import geteuid
-from platform import uname
+from platform import system, uname
 from pydantic import BaseModel
 from pwd import getpwuid
 from typing import Iterable
@@ -14,6 +14,14 @@ from .exception import NotFoundError
 from .persistable import ImmutableMixin, ObjectRecord, PersistableMixin
 from .._json import schema
 from .._type_registry import CLASS_TYPE_KEY, is_temporary_type
+
+
+def _get_user_name():
+    if system() == "Windows":
+        import win32api
+        return win32api.GetUserName()
+    else:
+        return getpwuid(geteuid()).pw_name
 
 
 class ReadRequest(BaseModel):
@@ -38,7 +46,7 @@ class ObjectStore(ABC):
         self.__check_schema: bool = check_schema
         self.__json_schema = {}
         self.__entered = False
-        self.__username = getpwuid(geteuid()).pw_name
+        self.__username = _get_user_name()
         self.__hostname = uname().node
         self.__comment = ""
         self.__pending_reads: tuple[ObjectRecord, ...] = ()
