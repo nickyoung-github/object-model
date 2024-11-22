@@ -28,7 +28,7 @@ dependencies = [
     "orjson",
     "psycopg",
     "pydantic",
-    "pywin32 ; platform_system ~= Windows",
+    "pywin32;platform_system==Windows",
     "requests",
     "setuptools",
     "sqlalchemy",
