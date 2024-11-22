@@ -18,7 +18,7 @@ class __ModelMetaclass(TypeCheckMixin, PydanticModelMetaclass):
 
 
 class BaseModel(PydanticBaseModel, ReplaceMixin, metaclass=__ModelMetaclass):
-    model_config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel)
+    model_config = ConfigDict(frozen=True, populate_by_name=True, alias_generator=to_camel, protected_namespaces=())
 
     @classmethod
     @cache

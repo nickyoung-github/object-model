@@ -19,6 +19,7 @@ class __BaseMetaClass(TypeCheckMixin, type):
 class Base(ReplaceMixin, metaclass=__BaseMetaClass):
     class Config:
         alias_generator = to_camel
+        protected_namespaces = ()
 
     @classmethod
     @cache
