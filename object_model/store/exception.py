@@ -31,7 +31,7 @@ class NotFoundError(ObjectStoreError):
 
 class WrongStoreError(ObjectStoreError):
     def __init__(self, object_type: str, object_id: bytes):
-        message = f"""Attempting to save object {object_type}:{object_id.decode("utf-8")}
+        message = f"""Attempting to save object {object_type}:{object_id.decode()}
                       in a different store to the one from which it was loaded"""
         super().__init__(message)
 

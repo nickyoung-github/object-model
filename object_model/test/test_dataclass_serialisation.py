@@ -37,7 +37,7 @@ def test_camel_case():
                 the_list=[1, 3.0, date(1984, 1, 1)],
                 tuple=(1, 3.0, date(1984, 1, 1)))
 
-    buffer = dumps(o).decode("utf-8")
+    buffer = dumps(o).decode()
     assert "theNested" in buffer
     assert "the_nested" not in buffer
 

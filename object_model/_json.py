@@ -1,14 +1,14 @@
 from dataclasses import MISSING, is_dataclass, fields
-from orjson import loads as __loads, dumps as __dumps
+from orjson import dumps as __dumps
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 from pydantic.alias_generators import to_camel
 from typing import Any
 
 
-from ._type_registry import TYPE_KEY, get_type
+from ._type_registry import get_type
 
 
-__type_adaptors: dict[str, TypeAdapter] = {}
+__type_adaptors: dict[type, TypeAdapter] = {}
 
 
 def get_type_adaptor(typ: type) -> TypeAdapter:
@@ -27,9 +27,9 @@ def get_type_adaptor(typ: type) -> TypeAdapter:
 
 def dump(data: Any) -> dict[str, Any]:
     if isinstance(data, BaseModel):
-        return data.model_dump(include={*data.model_fields_set, TYPE_KEY}, by_alias=True)
+        return data.model_dump(exclude_unset=True, by_alias=True)
     elif is_dataclass(data):
-        flds = [f.name for f in fields(data) if f.default is MISSING or f.default != getattr(data, f.name)]
+        flds = set(f.name for f in fields(data) if f.default is MISSING or f.default != getattr(data, f.name))
         return get_type_adaptor(type(data)).dump_python(data, include=flds)
     else:
         raise RuntimeError("Unsupported type")
@@ -37,33 +37,22 @@ def dump(data: Any) -> dict[str, Any]:
 
 def dumps(data: Any) -> bytes:
     if isinstance(data, BaseModel):
-        return data.model_dump_json(include={*data.model_fields_set, TYPE_KEY}, by_alias=True).encode("utf-8")
+        return data.model_dump_json(exclude_unset=True, by_alias=True).encode()
     elif is_dataclass(data):
-        flds = [f.name for f in fields(data) if f.default is MISSING or f.default != getattr(data, f.name)]
+        flds = set(f.name for f in fields(data) if f.default is MISSING or f.default != getattr(data, f.name))
         return get_type_adaptor(type(data)).dump_json(data, by_alias=True, include=flds)
     else:
         return __dumps(data)
 
 
-def load(data: dict[str, Any]) -> Any:
-    type_name = data.get(TYPE_KEY)
-    if type_name is None:
-        raise RuntimeError("No type in data")
-
-    typ = get_type(type_name)
+def load(data: dict[str, Any], typ: type | str) -> Any:
+    if isinstance(typ, str):
+        typ = get_type(typ)
 
     return typ.model_validate(data) if issubclass(typ, BaseModel) else get_type_adaptor(typ).validate_python(data)
 
 
-def loads(data: bytes | str, typ: type | str | None = None) -> Any:
-    if typ is None:
-        ret = __loads(data)
-        # SUPER ineffecient ...
-        if TYPE_KEY in ret:
-            typ = ret[TYPE_KEY]
-        else:
-            return ret
-
+def loads(data: bytes | str, typ: type | str) -> Any:
     if isinstance(typ, str):
         typ = get_type(typ)
 

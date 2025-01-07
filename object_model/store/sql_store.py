@@ -29,7 +29,7 @@ class Transactions(SQLModel, table=True):
 class SqlStore(ObjectStore):
     def __init__(self, connection_string: str, check_schema: bool, allow_temporary_types: bool, debug: bool = False):
         super().__init__(check_schema, allow_temporary_types)
-        set_json_dumps(lambda x: x.decode("utf-8") if isinstance(x, bytes) else x)
+        set_json_dumps(lambda x: x.decode() if isinstance(x, bytes) else x)
         set_json_loads(lambda x: x)
 
         self.__existing_types: set[str] = set()
@@ -58,7 +58,7 @@ class SqlStore(ObjectStore):
                     ObjectRecord.effective_time <= effective_time,
                     ObjectRecord.entry_time <= entry_time,
                     ObjectRecord.object_id_type == object_id_type,
-                    ObjectRecord.object_id.cast(String).in_(o.decode("utf-8") for o in object_ids)).group_by(
+                    ObjectRecord.object_id.cast(String).in_(o.decode() for o in object_ids)).group_by(
                         ObjectRecord.object_id_type, ObjectRecord.object_id).subquery()
 
                 # Load the contents corresponding to the max version

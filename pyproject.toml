@@ -15,7 +15,11 @@ requires-python = ">=3.11"
 
 classifiers = [
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python 3",
+    "Programming Language :: Python :: 3",
+    'Programming Language :: Python :: 3 :: Only',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
     "Operating System :: OS Independent"
 ]
 
@@ -28,6 +32,7 @@ dependencies = [
     "orjson",
     "psycopg",
     "pydantic",
+    "pydantic_gubbins",
     "pywin32; platform_system=='Windows'",
     "requests",
     "setuptools",
@@ -42,6 +47,10 @@ test = [
     "pytest",
     "pytest-cov"
 ]
+
+[project.urls]
+homepage = "https://github.com/nickyoung-github/object-model"
+
 
 [tool.setuptools.dynamic]
 entry-points = {file = "entry-points.txt"}

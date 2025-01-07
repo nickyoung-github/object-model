@@ -1,6 +1,7 @@
 from datetime import date
+from pydantic_gubbins.typing import SubclassOf
 
-from object_model import NamedPersistableModel, Subclass
+from object_model import NamedPersistableModel
 
 
 class Container(NamedPersistableModel):
@@ -12,7 +13,7 @@ class Container2(Container):
 
 
 class Nested(NamedPersistableModel):
-    container: Subclass[Container]
+    container: SubclassOf[Container]
 
 
 class Outer(NamedPersistableModel):

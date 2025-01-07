@@ -1,18 +1,12 @@
-from dataclasses import field, is_dataclass
-from datetime import date, datetime
-from pydantic import BaseModel
-from typing import Any, Callable, ClassVar, Literal, Union, get_origin, get_args
+from pydantic._internal._config import ConfigWrapper
+from pydantic_gubbins.typing import FrozenDict, Union
+from typing import Any, Callable, Union as _Union, get_origin, get_args
 
-from ._typing import DiscriminatedUnion, FrozenDict
-from ._type_registry import CLASS_TYPE_KEY, TYPE_KEY, register_type
+from ._type_registry import register_type
 
 
-__base_type_order = {datetime: -2, date: -1, int: -1}
-
-
-def check_type(fld: str, typ: Any) -> Any:
+def check_type(fld: str, typ: Any, immutable_collections: bool) -> Any:
     # Check that we have no non-serialisable or ambiguously serialisable types
-    # Also, rewrite a couple of types to avoid common problems
 
     if typ in (object, Any, Callable):
         raise TypeError(f"{typ} is not a persistable type for {fld}")
@@ -22,50 +16,33 @@ def check_type(fld: str, typ: Any) -> Any:
 
     if not args:
         if origin in (dict, list, set, tuple):
-            raise TypeError(f"Cannot use untyped collection for {field}")
+            raise TypeError(f"Cannot use untyped collection for {fld}")
 
     for arg in args:
-        check_type(fld, arg)
+        check_type(fld, arg, immutable_collections)
 
-    if origin is set:
-        return frozenset[args]
-    elif origin is list:
-        return tuple[args + (...,)]
-    elif origin is dict:
-        return FrozenDict[args]
-    elif origin is Union:
-        # Re-order the args of unions so that e.g. datetime comes before str
+    if origin is _Union:
+        return Union[args]
 
-        object_types = tuple(t for t in args if issubclass(t, BaseModel) or is_dataclass(t))
-        base_types = set(args).difference(object_types) if object_types else args
-        base_types = tuple(sorted(base_types, key=lambda x: __base_type_order.get(x, 0)))
-
-        # If we have e.g. Union[date, MyClass, MyOtherClass] we need to use a discriminated union for the
-        # classes, so we need Union[date, Annotated[Union[MyClass, MyOtherClass], Field(discriminator=TYPE_KEY)]
-
-        if len(object_types) > 1:
-            return Union[base_types + DiscriminatedUnion[object_types]] if base_types else\
-                DiscriminatedUnion[object_types]
+    if immutable_collections:
+        if origin is set:
+            return frozenset[args]
+        elif origin is list:
+            return tuple[args + (...,)]
+        elif origin is dict:
+            return FrozenDict[args]
 
     return typ
 
 
 class TypeCheckMixin:
     def __new__(cls, cls_name: str, bases: tuple[type[Any], ...], namespace: dict[str, Any], **kwargs):
-        annotations = namespace.setdefault("__annotations__", {})
+        model_config = ConfigWrapper.for_model(bases, namespace, kwargs)
+        immutable_collections = model_config.frozen if model_config else False
+        annotations = namespace.get("__annotations__", {})
 
-        for name, typ in annotations.items():
-            annotations[name] = check_type(name, typ)
-
-        registered_name = annotations.get(TYPE_KEY)
-
-        if not registered_name:
-            registered_name = cls_name
-            annotations[TYPE_KEY] = Literal[registered_name]
-            namespace[TYPE_KEY] = field(default_factory=lambda: registered_name, init=False)
-
-        annotations[CLASS_TYPE_KEY] = ClassVar[str]
-        namespace[CLASS_TYPE_KEY] = registered_name
+        for name, typ in namespace.setdefault("__annotations__", {}).items():
+            annotations[name] = check_type(name, typ, immutable_collections)
 
         ret = super().__new__(cls, cls_name, bases, namespace, **kwargs)
         register_type(ret)

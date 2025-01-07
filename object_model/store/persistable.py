@@ -4,12 +4,12 @@ from abc import abstractmethod
 from datetime import datetime
 from functools import cached_property
 from hashlib import sha3_512
+from pydantic_gubbins.typing import get_type_name
 from uuid import UUID
 
 from .object_record import ObjectRecord
 from .._descriptors import Id
 from .._json import dumps, loads
-from .._type_registry import CLASS_TYPE_KEY, TYPE_KEY
 
 
 class UseDerived:
@@ -51,11 +51,11 @@ class PersistableMixin:
 
     @property
     def object_type(self) -> str:
-        return getattr(self, TYPE_KEY)
+        return get_type_name(type(self))
 
     @property
     def object_id_type(self) -> str:
-        return getattr(self.id[0], CLASS_TYPE_KEY)
+        return get_type_name(self.id[0])
 
     @property
     def object_id(self) -> bytes:
@@ -81,7 +81,7 @@ class PersistableMixin:
             else:
                 raise ValueError(f"Missing ID field {name}")
 
-        return getattr(id_type, CLASS_TYPE_KEY), dumps(ret)
+        return get_type_name(id_type), dumps(ret)
 
     @classmethod
     def _check_persistable_class(cls):

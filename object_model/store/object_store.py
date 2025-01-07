@@ -5,13 +5,14 @@ from jsonschema import validate
 from orjson import loads
 from platform import system, uname
 from pydantic import BaseModel
+from pydantic_gubbins.typing import get_type_name
 from typing import Iterable
 
 from . import ObjectResult
 from .exception import NotFoundError
 from .persistable import ImmutableMixin, ObjectRecord, PersistableMixin
 from .._json import schema
-from .._type_registry import CLASS_TYPE_KEY, is_temporary_type
+from .._type_registry import is_temporary_type
 
 
 def _get_user_name():
@@ -145,7 +146,7 @@ class ObjectStore(ABC):
         return ret
 
     def register_type(self, typ: type[PersistableMixin]):
-        self.register_schema(RegisterSchemaRequest(name=getattr(typ, CLASS_TYPE_KEY), json_schema=schema(typ)))
+        self.register_schema(RegisterSchemaRequest(name=get_type_name(typ), json_schema=schema(typ)))
 
     def register_schema(self, request: RegisterSchemaRequest):
         defs = request.json_schema.pop("$defs", {})

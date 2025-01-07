@@ -1,7 +1,5 @@
 import importlib.metadata as md
-
-TYPE_KEY = "t_"
-CLASS_TYPE_KEY = "t__"
+from pydantic_gubbins.typing import get_type_name
 
 
 class __TypeRegistry:
@@ -34,10 +32,7 @@ class __TypeRegistry:
         return is_temporary
 
     def register_type(self, typ: type):
-        type_name = getattr(typ, CLASS_TYPE_KEY, None)
-        if type_name is None:
-            raise RuntimeError(f"{typ} is missing attribute {TYPE_KEY}")
-
+        type_name = get_type_name(typ)
         if type_name in self.__object_store.names:
             return
 
@@ -53,9 +48,7 @@ def get_type(type_name: str) -> type:
 
 def is_temporary_type(typ: str | type) -> bool:
     if isinstance(typ, type):
-        type_name = getattr(typ, CLASS_TYPE_KEY, None)
-        if type_name is None:
-            raise RuntimeError(f"{typ} is missing attribute {TYPE_KEY}")
+        type_name = get_type_name(typ)
     else:
         type_name = typ
 
