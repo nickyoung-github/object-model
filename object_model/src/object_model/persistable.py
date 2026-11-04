@@ -2,7 +2,7 @@ from abc import abstractmethod
 from hashlib import sha512
 from orjson import OPT_SORT_KEYS, dumps
 from pydantic import TypeAdapter
-from typing import Annotated, ClassVar, get_args, get_origin, get_type_hints
+from typing import Annotated, ClassVar, get_origin, get_type_hints
 
 
 class _IdFieldIndicator: ...
@@ -51,16 +51,12 @@ class Identifiable(Persistable):
     @classmethod
     def id_fields(cls) -> set[str]:
         if cls.__id_fields is None:
-            cls.__id_fields = set()
-            hints = get_type_hints(cls, include_extras=True)
-    
-            for name, hint in hints.items():
-                if get_origin(hint) is Annotated:
-                    base_type, *metadata = get_args(hint)
-    
-                    if any(m is _IdFieldIndicator for m in metadata):
-                        cls.__id_fields.add(name)
-                        
+            cls.__id_fields = set(
+                name
+                for name, hint in get_type_hints(cls, include_extras=True)
+                if get_origin(hint) is IdField
+            )
+            
         return cls.__id_fields
 
 
