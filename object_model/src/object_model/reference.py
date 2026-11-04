@@ -52,8 +52,7 @@ class ReferenceResolver:
             
             for object_id, obj in results.items():
                 obj.type_adapter().validate_python(obj, context={"resolver": self})
-                if not self.__pending:
-                    self.__resolved[object_id] = self.__loaded.pop(object_id)
+                self.__resolved[object_id] = self.__loaded.pop(object_id)
                     
         return True
 
