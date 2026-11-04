@@ -5,7 +5,7 @@ from typing import Any, Iterable
 from uuid import UUID, uuid4
 
 from .persistable import Persistable
-from .serialisation import dump, validate
+from .serialisation import dump_python, validate_python
 from .store import ObjectStore
 from .type_registry import TypeRegistry
 
@@ -53,14 +53,16 @@ class Transaction:
 
     def __enter__(self):
         self.__deferred_reads = {}
-        self.__deferred_writes = {}
+        self.__deferred_writes = []
 
     def __exit__(self):
-        self.__handle_writes(self.__deferred_writes)
-        self.__write_records = None
+        if self.__deferred_writes is not None:
+            self.__handle_writes(self.__deferred_writes)
+            self.__deferred_writes = None
 
-        self.__handle_reads(self.__deferred_reads)
-        self.__deferred_reads = None
+        if self.__deferred_reads is not None:
+            self.__handle_reads(self.__deferred_reads.keys())
+            self.__deferred_reads = None
 
     def __handle_reads(self, object_ids: Iterable[str]) -> dict[str, Persistable]:
         # ToDo: The query
@@ -69,12 +71,13 @@ class Transaction:
 
         for r in records:
             typ = self.__type_registry.get_type(r.registered_name)
-            obj = validate(typ, r.data, self.__store)
+            obj = validate_python(typ, r.data, self.__store)
 
-            try:
-                self.__deferred_reads.pop(r.object_id).set_value(obj)
-            except KeyError:
-                pass
+            if self.__deferred_reads is not None:
+                try:
+                    self.__deferred_reads.pop(r.object_id).set_value(obj)
+                except KeyError:
+                    pass
 
             ret[r.object_id] = obj
 
@@ -103,7 +106,7 @@ class Transaction:
                 registered_name=self.__type_registry.registered_name(typ),
                 path=self.__type_registry.registered_path(typ),
                 metadata=metadata,
-                data=dump(obj, self.__store)
+                data=dump_python(obj, self.__store)
             )
             records.append(record)
 
@@ -111,11 +114,10 @@ class Transaction:
         return self.__handle_reads(object_ids)
 
     def write(self, objects: Iterable[Persistable]):
-        deferred = self.__deferred_writes is not None
-        write_records = self.__deferred_writes if deferred else {}
+        write_records = self.__deferred_writes if self.__deferred_writes is not None else []
 
         for obj in objects:
             write_records.append(obj)
 
-        if not deferred:
+        if self.__deferred_writes is None:
             self.__handle_writes(write_records)

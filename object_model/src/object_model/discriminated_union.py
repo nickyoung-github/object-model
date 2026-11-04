@@ -23,7 +23,7 @@ class _TagJsonSchema:
         json_schema = handler(schema)
         resolved = dict(handler.resolve_ref_schema(json_schema))
         properties = resolved["properties"] = dict(resolved.get("properties", {}))
-        required = resolved["required"] = list(resolved.setdefault("required, []"))
+        required = resolved["required"] = list(resolved.setdefault("required", []))
         
         properties[self.__tag_field] = {"const": self.__tag}
         if self.__tag_field not in required:

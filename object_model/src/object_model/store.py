@@ -1,4 +1,4 @@
-from typing import Any, Iterable, Protocol
+from typing import Iterable, Protocol
 
 from .persistable import Persistable
         

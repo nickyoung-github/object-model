@@ -10,28 +10,21 @@ from typing import Annotated, Any, TypeVar
 from typing_extensions import TypeAliasType
 
 from .persistable import Persistable
+from .store import ObjectStore
 
 
-_DISCOVERY_SENTINEL = object()
+class _DISCOVERY_SENTINEL: ...
 
     
 class ReferenceResolver:
-    def __init__(self, db: ObjectDB):
-        self.__discovering = True
-        self.__db = db
+    def __init__(self, store: ObjectStore):
+        self.discovering = True
+        self.__store = store
         self.__pending: set[str] = set()
         self.__loaded: dict[str, Persistable] = {}
         self.__resolved: dict[str, Persistable] = {}
-
-    @property
-    def discovering(self) -> bool:
-        return self.__discovering
     
-    @discovering.setter
-    def discovering(self, value: bool):
-        self.__discovering = True
-    
-    def get(self, object_id: str) -> Persistable | _DISCOVERY_SENTINEL:
+    def get(self, object_id: str):
         if object_id in self.__resolved:
             return self.__resolved[object_id]
         elif self.discovering:
@@ -42,14 +35,14 @@ class ReferenceResolver:
         raise LookupError(f"Unresolvable id: {object_id}")
     
     def write(self, obj: Persistable):
-        self.__db.write([obj])
+        self.__store.write([obj])
     
     def resolve(self) -> bool:
         if not self.__pending:
             return False
         
         while self.__pending:
-            results = self.__db.read(self.__pending)
+            results = self.__store.read(self.__pending)
             for object_id, obj in results.items():
                 self.__loaded[object_id] = obj
                 self.__pending.remove(object_id)
@@ -58,14 +51,15 @@ class ReferenceResolver:
                 raise LookupError(f"Failed to load objects with ids: {self.__pending!r}")
             
             for object_id, obj in results.items():
-                obj.type_adapter.validate_python(obj, context={"resolver": self})
+                obj.type_adapter().validate_python(obj, context={"resolver": self})
                 if not self.__pending:
                     self.__resolved[object_id] = self.__loaded.pop(object_id)
                     
         return True
 
 class _Reference:
-    def __get_pydantic_core_schema__(self,
+    @classmethod
+    def __get_pydantic_core_schema__(cls,
                                      source_type: type[Persistable],
                                      handler: GetCoreSchemaHandler) -> CoreSchema:
         schema = handler(source_type)

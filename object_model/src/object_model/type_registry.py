@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from importlib.metadata import EntryPoint
-from typing import Self
+from typing import Self, cast
 
 
 class RegistrationError(Exception):
@@ -22,7 +22,7 @@ class TypeInfo[T]:
     
     @property
     def resolved_type(self) -> type[T]:
-        return self.typ.load() if isinstance(self.typ, EntryPoint) else self.typ
+        return cast(type[T], self.typ.load()) if isinstance(self.typ, EntryPoint) else self.typ
 
 
 class TypeRegistry[T]:
@@ -39,7 +39,7 @@ class TypeRegistry[T]:
         if not self.__initialised:
             self.__by_name: dict[str, TypeInfo[T]] = {}
             self.__by_type: dict[type, TypeInfo[T]] = {}
-            self.__by_type_name: dict[(str, str), TypeInfo[T]] = {}
+            self.__by_type_name: dict[tuple[str, str], TypeInfo[T]] = {}
             self.__by_path: dict[Path, list[TypeInfo[T]]] = {}
             self.__initialised = True
 
@@ -48,7 +48,7 @@ class TypeRegistry[T]:
             try:
                 return self.__by_type[typ].name
             except KeyError:
-                return self.__by_type_name[(typ.__module__, typ.__qual_name__)].name
+                return self.__by_type_name[(typ.__module__, typ.__qualname__)].name
         except KeyError:
             raise UnregisteredType(typ)
 
@@ -72,15 +72,19 @@ class TypeRegistry[T]:
         if type_info is not None:
             raise RegistrationError(name, type_info.resolved_type)
 
-        type_info = self.__by_type.get(typ)
-        if type_info is not None:
-            raise RegistrationError(type_info.name, type_info.resolved_type)
+        new_type_info = TypeInfo(name, path, typ)
 
-        type_info = TypeInfo(name, path, typ)
-        self.__by_name[name] = type_info
-        self.__by_path.setdefault(path, []).append(type_info)
-        
         if isinstance(typ, EntryPoint):
-            self.__by_type_name[typ.value.split(":",)] = type_info
+            module, qual_name = typ.value.split(":")
+            type_info = self.__by_type_name.get((module, qual_name))
+            if type_info is not None:
+                raise RegistrationError(type_info.name, type_info.resolved_type)
+            self.__by_type_name[(module, qual_name)] = new_type_info
         else:
-            self.__by_type[typ] = type_info
+            type_info = self.__by_type.get(typ)
+            if type_info is not None:
+                raise RegistrationError(type_info.name, type_info.resolved_type)
+            self.__by_type[typ] = new_type_info
+
+        self.__by_name[name] = new_type_info
+        self.__by_path.setdefault(path, []).append(new_type_info)

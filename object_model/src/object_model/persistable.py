@@ -67,4 +67,8 @@ class Identifiable(Persistable):
 class Interned(Persistable):
     @classmethod
     def id_fields(cls) -> set[str]:
-        return set(cls.type_adapter().core_schema["fields"])
+        return set(
+            name
+            for name, hint in get_type_hints(cls)
+            if get_origin(hint) is not ClassVar
+        )
