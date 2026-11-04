@@ -55,7 +55,7 @@ class ReferenceResolver:
                 if not self.__pending:
                     self.__resolved[object_id] = self.__loaded.pop(object_id)
                     
-        return len(self.__pending) > 0
+        return True
 
 
 class _Reference:
