@@ -1,3 +1,0 @@
-[object-store]
-NamedPersistable = object_model._dataclasses:NamedPersistable
-NamedPersistableModel = object_model._pydantic:NamedPersistableModel

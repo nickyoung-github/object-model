@@ -23,23 +23,10 @@ classifiers = [
     "Operating System :: OS Independent"
 ]
 
-dynamic = ["entry-points", "version"]
+dynamic = ["version"]
 
 dependencies = [
-    "fastapi",
-    "frozendict",
-    "jsonschema",
-    "orjson",
-    "psycopg",
-    "pydantic",
-    "pydantic_gubbins",
-    "pywin32; platform_system=='Windows'",
-    "requests",
-    "setuptools",
-    "sqlalchemy",
-    "sqlalchemy-utc",
-    "sqlmodel",
-    "uvicorn"
+    "pydantic>2.00"
 ]
 
 [project.optional-dependencies]
@@ -53,5 +40,4 @@ homepage = "https://github.com/nickyoung-github/object-model"
 
 
 [tool.setuptools.dynamic]
-entry-points = {file = "entry-points.txt"}
 version = {attr = "object_model.__init__.__version__"}
