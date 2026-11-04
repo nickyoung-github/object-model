@@ -13,6 +13,7 @@ type IdField[T] = Annotated[T, _IdFieldIndicator]
 class Persistable:
     __type_adapter: ClassVar[TypeAdapter] | None = None
 
+    # ToDo: Replace this by nobbling the compare attribute in dataclass field?
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             raise NotImplemented
@@ -49,9 +50,8 @@ class Identifiable(Persistable):
         
     @classmethod
     def id_fields(cls) -> set[str]:
-        flds = cls.__id_fields or set()
-        
         if cls.__id_fields is None:
+            cls.__id_fields = set()
             hints = get_type_hints(cls, include_extras=True)
     
             for name, hint in hints.items():
@@ -59,11 +59,9 @@ class Identifiable(Persistable):
                     base_type, *metadata = get_args(hint)
     
                     if any(m is _IdFieldIndicator for m in metadata):
-                        flds.add(name)
+                        cls.__id_fields.add(name)
                         
-            cls.__id_fields = flds
-                    
-        return flds
+        return cls.__id_fields
 
 
 class Interned(Persistable):
