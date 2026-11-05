@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from functools import lru_cache
 from hashlib import sha512
 from orjson import OPT_SORT_KEYS, dumps
 from pydantic import TypeAdapter
@@ -11,8 +12,6 @@ type IdField[T] = Annotated[T, _IdFieldIndicator]
 
 
 class Persistable:
-    __type_adapter: ClassVar[TypeAdapter] | None = None
-
     # ToDo: Replace this by nobbling the compare attribute in dataclass field?
     def __eq__(self, other):
         if not isinstance(other, type(self)):
@@ -23,10 +22,10 @@ class Persistable:
         return int(self.object_id, 16)
     
     @classmethod
+    @lru_cache
     def type_adapter(cls) -> TypeAdapter:
-        if cls.__type_adapter is None:
-            cls.__type_adapter = TypeAdapter(cls)
-        return cls.__type_adapter
+        # TypeAdapter construction is quite expensive, so cache it
+        return TypeAdapter(cls)
 
     @classmethod
     @abstractmethod
@@ -40,27 +39,21 @@ class Persistable:
         return sha512(payload).hexdigest()
     
 
-
 class Identifiable(Persistable):
-    __id_fields: ClassVar[set[str]] | None = None
-    
     def __init_subclass__(cls, **kwargs):
         if not cls.id_fields():
             raise TypeError(f"{cls!r} does not define any id fields")
         
     @classmethod
     def id_fields(cls) -> set[str]:
-        if cls.__id_fields is None:
-            cls.__id_fields = set(
-                name
-                for name, hint in get_type_hints(cls, include_extras=True)
-                if get_origin(hint) is IdField
-            )
-            
-        return cls.__id_fields
+        return set(
+            name
+            for name, hint in get_type_hints(cls, include_extras=True)
+            if get_origin(hint) is IdField
+        )
 
 
-class Interned(Persistable):
+class Unique(Persistable):
     @classmethod
     def id_fields(cls) -> set[str]:
         return set(

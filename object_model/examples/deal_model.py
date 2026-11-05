@@ -4,12 +4,13 @@ from enum import StrEnum, auto
 from pathlib import Path
 from typing import Union
 
-from src.object_store import (
+from object_model import (
     Identifiable,
     IdField,
     Interned,
     Reference,
     TypeRegistry,
+    Unique,
 )
 
 __registry = TypeRegistry()
@@ -43,7 +44,7 @@ __registry.register("TradingBook", TradingBook)
     
     
 @dataclass(kw_only=True)
-class Option(Interned):
+class Option(Unique):
     ticker: str
     strike: float
     maturity: dt.datetime
@@ -60,7 +61,7 @@ class TradeAction(StrEnum):
     
  
 @dataclass(kw_only=True)
-class Position(Interned):
+class Position(Unique):
     quantity: float
     action: TradeAction
     instrument: Reference[Instrument]
@@ -75,7 +76,7 @@ class Deal(Identifiable):
     book_to: Reference[TradingBook | CustomerBook]
     position: list[Position]
     
-__registry.register("Deal", Deal, Path("Deal"))
+__registry.register("Deal", Deal)
 
 
     

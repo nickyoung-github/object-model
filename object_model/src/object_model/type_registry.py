@@ -17,7 +17,7 @@ class UnregisteredType(Exception):
 @dataclass(frozen=True)
 class TypeInfo[T]:
     name: str
-    path: Path
+    root: Path
     typ: type[T] | EntryPoint
     
     @property
@@ -40,51 +40,57 @@ class TypeRegistry[T]:
             self.__by_name: dict[str, TypeInfo[T]] = {}
             self.__by_type: dict[type, TypeInfo[T]] = {}
             self.__by_type_name: dict[tuple[str, str], TypeInfo[T]] = {}
-            self.__by_path: dict[Path, list[TypeInfo[T]]] = {}
+            self.__by_root: dict[Path, list[TypeInfo[T]]] = {}
             self.__initialised = True
 
-    def registered_name(self, typ: type[T]) -> str:
+    def __type_info(self, typ: type[T] | EntryPoint) -> TypeInfo[T]:
         try:
-            try:
-                return self.__by_type[typ].name
-            except KeyError:
-                return self.__by_type_name[(typ.__module__, typ.__qualname__)].name
+            if isinstance(typ, EntryPoint):
+                return self.__by_type_name[(typ.__module__, typ.__qualname__)]
+            else:
+                return self.__by_type[typ]
         except KeyError:
-            raise UnregisteredType(typ)
+            raise UnregisteredType(typ.value if isinstance(typ, EntryPoint) else typ)
+        
+    def registered_name(self, typ: type[T]) -> str:
+        return self.__type_info(typ).name
 
-    def registered_path(self, typ: type[T]) -> Path:
-        return self.__by_type[typ].path
+    def root(self, typ: type[T]) -> Path:
+        return self.__type_info(typ).root
 
+    def path(self, typ: type[T], object_id: str, include_root: bool = False) -> Path:
+        ret = Path(self.registered_name(typ)).joinpath(object_id)
+        if include_root:
+            ret = self.root(typ).joinpath(ret)
+        return ret
+    
     def get_type(self, name: str) -> type[T]:
         try:
             return self.__by_name[name].resolved_type
         except KeyError:
             raise UnregisteredType(name)
 
-    def types_for_path(self, path: Path) -> tuple[type[T], ...]:
+    def types_for_root(self, root: Path) -> tuple[type[T], ...]:
         try:
-            return tuple(t.resolved_type for t in self.__by_path[path])
+            return tuple(t.resolved_type for t in self.__by_root[root])
         except KeyError:
-            raise UnregisteredType(path)
+            raise UnregisteredType(root)
         
-    def register(self, name: str, typ: type[T] | EntryPoint, path=Path()):
+    def register(self, name: str, typ: type[T] | EntryPoint, root=Path()):
         type_info = self.__by_name.get(name)
         if type_info is not None:
             raise RegistrationError(name, type_info.resolved_type)
 
-        new_type_info = TypeInfo(name, path, typ)
-
+        type_info = self.__type_info(typ)
+        if type_info is not None:
+            raise RegistrationError(type_info.name, type_info.resolved_type)
+        
+        type_info = TypeInfo(name, root, typ)
+        self.__by_name[name] = type_info
+        self.__by_root.setdefault(root, []).append(type_info)
+        
         if isinstance(typ, EntryPoint):
             module, qual_name = typ.value.split(":")
-            type_info = self.__by_type_name.get((module, qual_name))
-            if type_info is not None:
-                raise RegistrationError(type_info.name, type_info.resolved_type)
-            self.__by_type_name[(module, qual_name)] = new_type_info
+            self.__by_type_name[(module, qual_name)] = type_info
         else:
-            type_info = self.__by_type.get(typ)
-            if type_info is not None:
-                raise RegistrationError(type_info.name, type_info.resolved_type)
-            self.__by_type[typ] = new_type_info
-
-        self.__by_name[name] = new_type_info
-        self.__by_path.setdefault(path, []).append(new_type_info)
+            self.__by_type[typ] = type_info
