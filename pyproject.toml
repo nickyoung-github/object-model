@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "py-object-model"
+name = "object-model"
 description = "Core Object Model"
 authors = [
     {name = "Nick Young", email = "nick.young.github@gmail.com"}
@@ -26,7 +26,12 @@ classifiers = [
 dynamic = ["version"]
 
 dependencies = [
-    "pydantic>2.00"
+    "duckdb",
+    "fsspec",
+    "orjson",
+    "pyarrow",
+    "pydantic>2.00",
+    "pydantic-to-pyarrow",
 ]
 
 [project.optional-dependencies]
@@ -37,7 +42,6 @@ test = [
 
 [project.urls]
 homepage = "https://github.com/nickyoung-github/object-model"
-
 
 [tool.setuptools.dynamic]
 version = {attr = "object_model.__init__.__version__"}
