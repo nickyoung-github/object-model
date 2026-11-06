@@ -35,7 +35,12 @@ class ObjectStore(Protocol):
     def type_adaptor(cls, typ: type[ObjectRecord]) -> TypeAdapter[ObjectRecord]:
         ...
     
-    def read(self, paths: Iterable[Path]) -> dict[Path, Persistable]:
+    def read(
+        self,
+        object_ids: Iterable[Path],
+        effective_time: dt.datetime = dt.datetime.max,
+        entry_time: dt.datetime = dt.datetime.max
+    ) -> dict[Path, Persistable]:
         ...
 
     def write(

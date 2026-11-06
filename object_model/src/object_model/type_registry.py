@@ -57,16 +57,6 @@ class TypeRegistry[T]:
 
     def root(self, typ: type[T]) -> Path:
         return self.__type_info(typ).root
-
-    def path(self, typ: type[T], object_id: str | None = None, include_root: bool = False) -> Path:
-        ret = Path(self.registered_name(typ))
-        if object_id is not None:
-            ret = ret.joinpath(object_id)
-            
-        if include_root:
-            ret = self.root(typ).joinpath(ret)
-            
-        return ret
     
     def get_type(self, name: str) -> type[T]:
         try:

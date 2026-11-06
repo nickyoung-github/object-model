@@ -37,7 +37,7 @@ class Transaction:
                 self.__store.write(objects, effective_time=effective_time)
             self.__deferred_writes = None
 
-    def read(self, typ: type[Persistable], object_ids: Iterable[str]) -> tuple[Persistable, ...]:
+    def read(self, object_ids: Iterable[Path]) -> tuple[Persistable, ...]:
         ...
 
     def write(self, objects: Iterable[Persistable], effective_time: dt.datetime = dt.datetime.max):

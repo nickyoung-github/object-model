@@ -1,5 +1,5 @@
 from pathlib import Path
-from pydantic import GetCoreSchemaHandler, TypeAdapter
+from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema
 from pydantic_core.core_schema import(
     SerializationInfo,
@@ -11,7 +11,7 @@ from typing import Annotated, Any, TypeVar
 from typing_extensions import TypeAliasType
 
 from .persistable import Persistable
-from .store import ObjectRecord, ObjectStore
+from .store import ObjectStore
 from .type_registry import TypeRegistry
 
 
@@ -21,9 +21,9 @@ class _DISCOVERY_SENTINEL: ...
 class ReferenceResolver:
     def __init__(self, store: ObjectStore):
         self.__store = store
+        self.__discovering = False
         self.__type_registry = TypeRegistry[Persistable]()
         self.__pending: set[Path] = set()
-        self.__loaded: set[Path] = set()
         self.__resolved: dict[Path, Persistable] = {}
         self.__to_write: set[Persistable] = set()
     
@@ -31,47 +31,29 @@ class ReferenceResolver:
     def to_write(self) -> set[Persistable]:
         return self.__to_write
     
-    def get(self, path: Path):
-        if path in self.__resolved:
-            return self.__resolved[path]
-        elif path in self.__loaded:
-            raise ValueError(f"Reference cycle on {path!r}")
-        else:
-            self.__pending.add(path)
+    def get(self, object_id: Path):
+        if object_id in self.__resolved:
+            return self.__resolved[object_id]
+        elif self.__discovering:
+            self.__pending.add(object_id)
             return _DISCOVERY_SENTINEL
+        raise RuntimeError("Failed to resolve {object_id")
 
     def write(self, obj: Persistable):
         self.__to_write.add(obj)
     
     def resolve(self) -> bool:
+        self.__discovering = False
+        
         if not self.__pending:
             return False
+    
+        loaded = self.__store.read(self.__pending)
+        if len(loaded) < len(self.__pending):
+            missing = self.__pending.difference(loaded.keys())
+            raise RuntimeError(f"Failed to load {missing!r}")
         
-        def type_adapter_path(r: ObjectRecord) -> tuple[TypeAdapter, Path]:
-            typ_ = self.__type_registry.get_type(r.registered_name)
-            path_ = self.__type_registry.root(typ_).joinpath(r.object_id)
-            record_type = self.__store.record_type(typ_)
-            typ_adapter = self.__store.type_adaptor(record_type)
-            return typ_adapter, path_
-            
-        to_load: list[tuple[TypeAdapter[ObjectRecord], Path, ObjectRecord]] = []
-        
-        while self.__pending:
-            records = self.__store.read(self.__pending)
-            if len(records) < len(self.__pending):
-                missing = self.__pending.difference(type_adapter_path(r)[1] for r in records)
-                raise RuntimeError(f"Failed to load {missing!r}")
-        
-            for record in records:
-                type_adapter, path = type_adapter_path(record)
-                to_load.append((type_adapter, path, record))
-                self.__loaded.add(path)
-                self.__pending.remove(path)
-
-        for type_adapter, path, record in reversed(to_load):
-            obj = type_adapter.validate_python(record.data, context={"resolver": self})
-            self.__loaded.remove(path)
-            self.__resolved[path] = obj.data
+        self.__resolved.update(loaded)
             
         return True
             
@@ -84,7 +66,6 @@ class _Reference:
         handler: GetCoreSchemaHandler
     ) -> CoreSchema:
         schema = handler(source_type)
-        type_registry = TypeRegistry[Persistable]()
 
         def resolver(info: SerializationInfo | ValidationInfo) -> ReferenceResolver:
             ret = (info.context or {}).get("resolver")
@@ -103,7 +84,7 @@ class _Reference:
         def serialise(value: Persistable, _serialiser, info: SerializationInfo) -> Any:
             try:
                 resolver(info).write(value)
-                return type_registry.path(type(value), value.object_id)
+                return value.object_id
             except RuntimeError:
                 return value
 
