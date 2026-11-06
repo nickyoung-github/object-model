@@ -1,5 +1,5 @@
 from pathlib import Path
-from pydantic import GetCoreSchemaHandler
+from pydantic import GetCoreSchemaHandler, TypeAdapter
 from pydantic_core import CoreSchema
 from pydantic_core.core_schema import(
     SerializationInfo,
@@ -19,21 +19,6 @@ class _DISCOVERY_SENTINEL: ...
 
     
 class ReferenceResolver:
-    class ReadContext:
-        def __init__(self, resolver):
-            self.resolver = resolver
-            self.pending = set()
-            self.previous_pending = None
-            
-        def __enter__(self):
-            self.previous_pending = self.resolver.__pending
-            self.resolver.__pending = self.pending
-            return self
-            
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            self.resolver.__pending = self.previous_pending
-            
-            
     def __init__(self, store: ObjectStore):
         self.__store = store
         self.__type_registry = TypeRegistry[Persistable]()
@@ -58,29 +43,37 @@ class ReferenceResolver:
     def write(self, obj: Persistable):
         self.__to_write.add(obj)
     
-    def resolve(self):
-        def type_path_from_record(r: ObjectRecord):
-            typ_ = self.__type_registry.get_type(r.registered_name)
-            path_ = self.__type_registry.path(typ_, r.object_id)
-            return typ_, path_
-            
-        to_load: list[tuple[type[Persistable], Path, ObjectRecord]] = []
+    def resolve(self) -> bool:
+        if not self.__pending:
+            return False
         
-        while self.__pending: 
+        def type_adapter_path(r: ObjectRecord) -> tuple[TypeAdapter, Path]:
+            typ_ = self.__type_registry.get_type(r.registered_name)
+            path_ = self.__type_registry.root(typ_).joinpath(r.object_id)
+            record_type = self.__store.record_type(typ_)
+            typ_adapter = self.__store.type_adaptor(record_type)
+            return typ_adapter, path_
+            
+        to_load: list[tuple[TypeAdapter[ObjectRecord], Path, ObjectRecord]] = []
+        
+        while self.__pending:
             records = self.__store.read(self.__pending)
             if len(records) < len(self.__pending):
-                missing = self.__pending.difference(type_path_from_record(r)[1] for r in records)
+                missing = self.__pending.difference(type_adapter_path(r)[1] for r in records)
                 raise RuntimeError(f"Failed to load {missing!r}")
         
             for record in records:
-                typ, path = type_path_from_record(record)
-                to_load.append((typ, path, record))
+                type_adapter, path = type_adapter_path(record)
+                to_load.append((type_adapter, path, record))
                 self.__loaded.add(path)
                 self.__pending.remove(path)
 
-        for typ, path, record in reversed(to_load):
-            obj = typ.type_adapter().validate_python(record.data, context={"resolver": self})
-            self.__resolved[path] = obj
+        for type_adapter, path, record in reversed(to_load):
+            obj = type_adapter.validate_python(record.data, context={"resolver": self})
+            self.__loaded.remove(path)
+            self.__resolved[path] = obj.data
+            
+        return True
             
 
 class _Reference:
