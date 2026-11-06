@@ -43,5 +43,5 @@ test = [
 [project.urls]
 homepage = "https://github.com/nickyoung-github/object-model"
 
-[tool.setuptools.dynamic]
-version = {attr = "object_model.__init__.__version__"}
+#[tool.setuptools.dynamic]
+#version = {attr = "object_model.__init__.__version__"}
