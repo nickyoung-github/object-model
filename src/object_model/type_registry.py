@@ -75,8 +75,11 @@ class TypeRegistry[T]:
         if type_info is not None:
             raise RegistrationError(name, type_info.resolved_type)
 
-        type_info = self.__type_info(typ)
-        if type_info is not None:
+        try:
+            type_info = self.__type_info(typ)
+        except UnregisteredType:
+            pass
+        else:
             raise RegistrationError(type_info.name, type_info.resolved_type)
         
         type_info = TypeInfo(name, root, typ)

@@ -2,7 +2,6 @@ import datetime as dt
 from pathlib import Path
 from pydantic import BaseModel, TypeAdapter
 from typing import Any, Iterable, Protocol
-from uuid import UUID
 
 from .persistable import Persistable
         
@@ -13,20 +12,26 @@ class MetaData(BaseModel):
     entry_time: dt.datetime
     host: str
     user: str
-    transaction_id: UUID
 
 
 class ObjectRecord(BaseModel):  # There is a reason for this
-    object_id: Path
+    object_id: str
     metadata: MetaData
     data: Any
     
     @property
     def registered_name(self) -> str:
-        return str(self.object_id.parent)
+        return str(Path(self.object_id).parent)
     
     
 class ObjectStore(Protocol):
+    def _read(self):
+        ...
+
+    def _write(self, records_by_path: dict[Path, list[dict[str, Any]]]):
+        ...
+
+
     @classmethod
     def record_type(cls, typ: type[Persistable]) -> type[ObjectRecord]:
         ...
