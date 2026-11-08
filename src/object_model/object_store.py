@@ -3,13 +3,17 @@ import datetime as dt
 from functools import cache
 from pathlib import Path
 from pydantic import BaseModel, TypeAdapter, create_model
-from typing import Any, Iterable
+from typing import Any, Iterable, TypeVar
 
 from .persistable import Persistable
 from .type_registry import TypeRegistry
         
 # These are pydantic classes because it's easy to use create_model to create the per-type
 # derived ObjectRecord classes we need
+
+
+T = TypeVar("T", bound=type[Persistable])
+
 
 class MetaData(BaseModel):
     effective_time: dt.datetime
@@ -18,10 +22,10 @@ class MetaData(BaseModel):
     user: str
 
 
-class ObjectRecord(BaseModel):  # There is a reason for this
+class ObjectRecord[T](BaseModel):  # There is a reason for this
     object_id: str
     metadata: MetaData
-    data: Any
+    T: Any
     
     @property
     def registered_name(self) -> str:
@@ -147,8 +151,19 @@ class ObjectStore(ABC):
     def write(
         self,
         objects: Iterable[Persistable],
-        effective_time: dt.datetime = dt.datetime.max
+        effective_time: dt.datetime = dt.datetime.max,
+        check: bool = True,
+        by_reference: bool = True
     ):
+        if check:
+            current = self.read(o.object_id for o in objects)
+            objects = [o for o in objects if current.get(o.object_id) != o]
+        else:
+            objects = list(objects)
+
+        if not objects:
+            return
+        
         type_registry = self.type_registry()
         by_path: dict[Path, list[dict[str, Any]]] = {}
         entry_time = dt.datetime.now(dt.UTC)
@@ -160,9 +175,8 @@ class ObjectStore(ABC):
             user="nick",
         )
 
-        all_objects = list(objects)
-        while all_objects:
-            obj = all_objects.pop()
+        while objects:
+            obj = objects.pop()
             object_id = obj.object_id
             typ = type(obj)
             directory = type_registry.root(typ).joinpath(object_id.parent)
@@ -172,12 +186,13 @@ class ObjectStore(ABC):
             record = record_type(
                 object_id=str(object_id),
                 metadata=metadata,
-                data=obj
+                data=obj # pyright: ignore[reportCallIssue]
             )
             resolver = ReferenceResolver(self)
-            data = type_adapter.dump_python(record, context={"resolver": resolver})
+            context = {"resolver": resolver} if by_reference else None
+            data = type_adapter.dump_python(record, context=context)
 
-            all_objects.extend(resolver.take_pending_writes())
+            objects.extend(resolver.take_pending_writes())
             by_path.setdefault(path, []).append(data)
 
         self._write(by_path)

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from pathlib import Path
 from importlib.metadata import EntryPoint
+from pathlib import Path
 from typing import Self, cast
 
 
@@ -39,16 +39,19 @@ class TypeRegistry[T]:
         if not self.__initialised:
             self.__by_name: dict[str, TypeInfo[T]] = {}
             self.__by_type: dict[type, TypeInfo[T]] = {}
-            self.__by_type_name: dict[tuple[str, str], TypeInfo[T]] = {}
+            self.__by_type_name: dict[str, TypeInfo[T]] = {}
             self.__by_root: dict[Path, list[TypeInfo[T]]] = {}
             self.__initialised = True
 
     def __type_info(self, typ: type[T] | EntryPoint) -> TypeInfo[T]:
         try:
             if isinstance(typ, EntryPoint):
-                return self.__by_type_name[(typ.__module__, typ.__qualname__)]
+                return self.__by_type_name[typ.value]
             else:
-                return self.__by_type[typ]
+                try:
+                    return self.__by_type[typ]
+                except KeyError:
+                    return self.__by_type_name[f"{typ.__module__}:{typ.__qualname__}"]
         except KeyError:
             raise UnregisteredType(typ.value if isinstance(typ, EntryPoint) else typ)
         
@@ -87,7 +90,6 @@ class TypeRegistry[T]:
         self.__by_root.setdefault(root, []).append(type_info)
         
         if isinstance(typ, EntryPoint):
-            module, qual_name = typ.value.split(":")
-            self.__by_type_name[(module, qual_name)] = type_info
+            self.__by_type_name[typ.value] = type_info
         else:
             self.__by_type[typ] = type_info

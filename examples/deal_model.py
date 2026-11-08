@@ -2,10 +2,10 @@ from dataclasses import dataclass
 import datetime as dt
 from enum import StrEnum, auto
 from pathlib import Path
-from pydantic import BaseModel
 from typing import Union
 
 from object_model import (
+    Discriminated,
     Identifiable,
     IdField,
     Reference,
@@ -16,9 +16,8 @@ from object_model import (
 __registry = TypeRegistry()
 
 
-# @dataclass(kw_only=True)
-# class Counterparty(Identifiable):
-class Counterparty(Identifiable, BaseModel):
+@dataclass(kw_only=True)
+class Counterparty(Identifiable):
     name: IdField[str]
     location: str
     contact_name: str
@@ -26,9 +25,8 @@ class Counterparty(Identifiable, BaseModel):
 __registry.register("Counterparty", Counterparty)
 
 
-# @dataclass(kw_only=True)
-# class CustomerBook(Identifiable):
-class CustomerBook(Identifiable, BaseModel):
+@dataclass(kw_only=True)
+class CustomerBook(Identifiable):
     counterparty: IdField[Counterparty]
     sales_coverage: tuple[str, ...]
     
@@ -44,7 +42,6 @@ class TradingBook(Identifiable):
 __registry.register("TradingBook", TradingBook)
 
     
-    
 @dataclass(kw_only=True)
 class Option(Unique):
     ticker: str
@@ -53,7 +50,8 @@ class Option(Unique):
     
 __registry.register("Option", Option, Path("Instrument"))
 
-Instrument = Union[__registry.types_for_root(Path("Instrument"))]
+Instrument = Discriminated[Path("Instrument")]
+
 
 class TradeAction(StrEnum):
     Buy = auto()

@@ -1,24 +1,23 @@
 from pathlib import Path
+from typing import Annotated, Any, TypeVar
+
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema
-from pydantic_core.core_schema import(
+from pydantic_core.core_schema import (
     SerializationInfo,
     ValidationInfo,
     with_info_before_validator_function,
-    wrap_serializer_function_ser_schema
+    wrap_serializer_function_ser_schema,
 )
-from typing import Annotated, Any, TypeVar, get_args, get_origin
 
+from .object_store import ReferenceResolver
 from .persistable import Persistable
-from .store import ReferenceResolver
 
 
 class _Reference:
     @classmethod
     def __get_pydantic_core_schema__(
-        cls,
-        source_type: type[Persistable],
-        handler: GetCoreSchemaHandler
+        cls, source_type: type[Persistable], handler: GetCoreSchemaHandler
     ) -> CoreSchema:
         schema = handler(source_type)
 
@@ -28,12 +27,14 @@ class _Reference:
                 raise RuntimeError("Need a context to dump or validate Reference")
 
             return ret
-        
+
         def validate(value: Any, info: ValidationInfo) -> Any:
             if isinstance(value, source_type):
                 return value
             elif not isinstance(value, str):
-                raise ValueError(f"Expected an object id or {source_type!s}, got {type(value)!s}")
+                raise TypeError(
+                    f"Expected an object id or {source_type!s}, got {type(value)!s}"
+                )
             return resolver(info).get(Path(value))
 
         def serialise(value: Persistable, _serialiser, info: SerializationInfo) -> Any:
@@ -47,17 +48,11 @@ class _Reference:
             validate,
             schema,
             serialization=wrap_serializer_function_ser_schema(
-                serialise,
-                schema=schema,
-                info_arg=True
-            )
+                serialise, schema=schema, info_arg=True
+            ),
         )
 
+
 __REFERENCE = _Reference()
-T = TypeVar("T")
+T = TypeVar("T", bound=type[Persistable])
 Reference = Annotated[T | Path, __REFERENCE]
-
-
-def is_reference(typ) -> bool:
-    return get_origin(typ) is Annotated and get_args(typ) == (__REFERENCE,)
-

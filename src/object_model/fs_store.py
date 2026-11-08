@@ -1,28 +1,29 @@
-from anyschema import AnySchema
 import datetime as dt
-import duckdb
 from enum import Enum, auto
-from fsspec import url_to_fs
-from orjson import dumps
 from pathlib import Path
-import pyarrow as pa
-import pyarrow.parquet as pq
 from typing import Any
 
+import duckdb
+import pyarrow as pa
+import pyarrow.parquet as pq
+from anyschema import AnySchema
+from fsspec import url_to_fs
+from orjson import dumps
+
 from .anyschema import PIPELINE
-from .store import ObjectRecord, ObjectStore
+from .object_store import ObjectRecord, ObjectStore
 from .persistable import Persistable
 from .type_registry import TypeRegistry
 from .typed_cache import typed_cache
 
 
-class LocalStoreFormat(Enum):
+class FSStoreFormat(Enum):
     Json = auto()
     Parquet = auto()
     
     
 class FSStore(ObjectStore):
-    def __init__(self, url: str, record_format: LocalStoreFormat = LocalStoreFormat.Parquet):
+    def __init__(self, url: str, record_format: FSStoreFormat = FSStoreFormat.Parquet):
         self.__fs, root = url_to_fs(url)
         self.__root = Path(root)
         self.__record_format = record_format
@@ -48,7 +49,7 @@ class FSStore(ObjectStore):
             resolved_directory = self.__root.joinpath(directory)
             from_spec = f"""
             FROM read_parquet('{resolved_directory!s}/**/*.parquet', union_by_name = true)
-            """ if self.__record_format is LocalStoreFormat.Parquet else f"""
+            """ if self.__record_format is FSStoreFormat.Parquet else f"""
             FROM read_json('{resolved_directory!s}/**/*.json', union_by_name = true)
             """
 
@@ -82,11 +83,11 @@ class FSStore(ObjectStore):
             self.__fs.makedirs(path.parent, exist_ok=True)
 
             match self.__record_format:
-                case LocalStoreFormat.Parquet:
+                case FSStoreFormat.Parquet:
                     table = pa.Table.from_pylist(records, schema=schema)
                     with pq.ParquetWriter(str(path.with_suffix(".parquet")), schema, filesystem=self.__fs) as writer:
                         writer.write_table(table)
-                case LocalStoreFormat.Json:
+                case FSStoreFormat.Json:
                     self.__fs.write_bytes(path.with_suffix(".json"), dumps(records))
                 case _:
                     raise RuntimeError(f"Unsupported format {self.__record_format}")

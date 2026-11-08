@@ -1,16 +1,22 @@
-import narwhals as nw
-from narwhals.dtypes import DType
 from pathlib import Path
 from types import NoneType
 
+import narwhals as nw
 from anyschema._dependencies import is_dataclass
 from anyschema.adapters import dataclass_adapter
 from anyschema.exceptions import UnsupportedDTypeError
-from anyschema.parsers import AnnotatedStep, ForwardRefStep, PyTypeStep, UnionTypeStep, make_pipeline
+from anyschema.parsers import (
+    AnnotatedStep,
+    ForwardRefStep,
+    PyTypeStep,
+    UnionTypeStep,
+    make_pipeline,
+)
 from anyschema.parsers._base import ParserStep
 from anyschema.parsers.annotated_types import AnnotatedTypesStep
 from anyschema.parsers.pydantic import PydanticTypeStep
 from anyschema.typing import FieldConstraints, FieldMetadata, FieldType
+from narwhals.dtypes import DType
 
 from .persistable import Persistable
 
@@ -19,7 +25,7 @@ class DataclassTypeStep(ParserStep):
     def parse(
         self,
         input_type: FieldType,
-        constraints: FieldConstraints,  # noqa: ARG002
+        constraints: FieldConstraints,
         metadata: FieldMetadata,
     ) -> DType | None:
         if is_dataclass(input_type):
@@ -38,7 +44,7 @@ class _UnionTypeStep(UnionTypeStep):
     # Replaces the anyschema one, so we can handle references
 
     def _parse_union(self, union: tuple[FieldType, ...]) -> FieldType:
-        if len(union) != 2:  # noqa: PLR2004
+        if len(union) != 2:
             msg = "Union with more than two types is not supported."
             raise UnsupportedDTypeError(msg)
 
@@ -48,7 +54,7 @@ class _UnionTypeStep(UnionTypeStep):
             msg = "Union with mixed types is not supported."
 
             for f in (field0, field1):
-                if f is not Path and not issubclass(f, Persistable):
+                if f is not Path and isinstance(f, type) and not issubclass(f, Persistable):
                     raise UnsupportedDTypeError(msg)
 
             return str
