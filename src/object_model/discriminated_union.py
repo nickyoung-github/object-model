@@ -44,11 +44,13 @@ class _TagJsonSchema:
         
 @_SpecialForm # pyright: ignore[reportCallIssue]
 def DiscriminatedUnion(_, params: tuple[type[Persistable | Discriminator], ...]):
-    if not isinstance(params, tuple | list) or len(params) == 1:
+    if not isinstance(params, tuple | list) or len(params) < 2:
         raise TypeError("Can only use with multiple Persistable types")
 
     if isinstance(params[-1], Discriminator):
         tmp_types = params[:-1]
+        if len(tmp_types) < 2:
+            raise TypeError("Can only use with multiple Persistable types")
         discriminator = params[-1]
     else:
         tmp_types = params
