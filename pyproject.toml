@@ -29,6 +29,7 @@ dependencies = [
     "anyschema",
     "duckdb",
     "fsspec",
+    "narwhals",
     "orjson",
     "pyarrow",
     "pydantic>2.0",

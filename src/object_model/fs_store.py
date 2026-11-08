@@ -1,0 +1,91 @@
+from anyschema import AnySchema
+import datetime as dt
+import duckdb
+from enum import Enum, auto
+from fsspec import url_to_fs
+from orjson import dumps
+from pathlib import Path
+import pyarrow as pa
+import pyarrow.parquet as pq
+from typing import Any
+
+from .anyschema import PIPELINE
+from .store import ObjectRecord, ObjectStore, ReferenceResolver
+from .persistable import Persistable
+from .type_registry import TypeRegistry
+from .typed_cache import typed_cache
+
+
+class LocalStoreFormat(Enum):
+    Json = auto()
+    Parquet = auto()
+    
+    
+class FSStore(ObjectStore):
+    def __init__(self, url: str, record_format: LocalStoreFormat = LocalStoreFormat.Parquet):
+        self.__fs, root = url_to_fs(url)
+        self.__root = Path(root)
+        self.__record_format = record_format
+        self.__conn = duckdb.connect()
+        self.__type_registry = TypeRegistry[Persistable]()
+        
+    @classmethod
+    @typed_cache
+    def __schema(cls, typ: type[ObjectRecord]) -> pa.Schema:
+        schema = AnySchema(spec=typ, pipeline=PIPELINE)
+        return schema.to_arrow()
+
+    def _read(
+        self,
+        by_directory: dict[Path, list[Path]],
+        effective_time: dt.datetime,
+        entry_time: dt.datetime
+    ) -> dict[Path, list[dict[str, Any]]]:
+        results = {}
+
+        for directory, object_ids in by_directory.items():
+            resolved_directory = self.__root.joinpath(directory)
+            from_spec = f"""
+            FROM read_parquet('{resolved_directory!s}/**/*.parquet', union_by_name = true)
+            """ if self.__record_format is LocalStoreFormat.Parquet else f"""
+            FROM read_json('{resolved_directory!s}/**/*.json', union_by_name = true)
+            """
+
+            table = self.__conn.sql(
+                f"""
+                SELECT *
+                {from_spec}
+                WHERE object_id IN (SELECT unnest(?))
+                AND metadata.effective_time <= ?
+                AND metadata.entry_time <= ?
+                QUALIFY row_number() OVER (PARTITION BY object_id ORDER BY metadata.entry_time DESC) = 1
+                """,
+                params=[[str(i) for i in object_ids], effective_time, entry_time],
+            ).to_arrow_table()
+
+            results[directory] = table.to_pylist()
+
+        return results
+
+    def _write(
+        self,
+        records_by_path: dict[Path, list[dict[str, Any]]]
+    ):
+        for path, records in records_by_path.items():
+            if not records:
+                continue
+
+            path = self.__root.joinpath(path)
+            typ = self.__type_registry.get_type(Path(records[0]["object_id"]).parent.name)
+            schema = self.__schema(self.record_type(typ))
+            self.__fs.makedirs(path.parent, exist_ok=True)
+
+            match self.__record_format:
+                case LocalStoreFormat.Parquet:
+                    table = pa.Table.from_pylist(records, schema=schema)
+                    with pq.ParquetWriter(str(path.with_suffix(".parquet")), schema, filesystem=self.__fs) as writer:
+                        writer.write_table(table)
+                case LocalStoreFormat.Json:
+                    self.__fs.write_bytes(path.with_suffix(".json"), dumps(records))
+                case _:
+                    raise RuntimeError(f"Unsupported format {self.__record_format}")
