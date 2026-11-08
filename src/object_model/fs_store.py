@@ -10,7 +10,7 @@ import pyarrow.parquet as pq
 from typing import Any
 
 from .anyschema import PIPELINE
-from .store import ObjectRecord, ObjectStore, ReferenceResolver
+from .store import ObjectRecord, ObjectStore
 from .persistable import Persistable
 from .type_registry import TypeRegistry
 from .typed_cache import typed_cache
@@ -26,8 +26,9 @@ class FSStore(ObjectStore):
         self.__fs, root = url_to_fs(url)
         self.__root = Path(root)
         self.__record_format = record_format
-        self.__conn = duckdb.connect()
         self.__type_registry = TypeRegistry[Persistable]()
+        self.__conn = duckdb.connect()
+        self.__conn.register_filesystem(self.__fs)
         
     @classmethod
     @typed_cache
