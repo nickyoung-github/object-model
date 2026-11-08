@@ -25,7 +25,7 @@ class MetaData(BaseModel):
 class ObjectRecord[T](BaseModel):  # There is a reason for this
     object_id: str
     metadata: MetaData
-    T: Any
+    data: T
     
     @property
     def registered_name(self) -> str:

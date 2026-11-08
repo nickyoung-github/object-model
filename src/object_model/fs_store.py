@@ -53,19 +53,23 @@ class FSStore(ObjectStore):
             FROM read_json('{resolved_directory!s}/**/*.json', union_by_name = true)
             """
 
-            table = self.__conn.sql(
-                f"""
-                SELECT *
-                {from_spec}
-                WHERE object_id IN (SELECT unnest(?))
-                AND metadata.effective_time <= ?
-                AND metadata.entry_time <= ?
-                QUALIFY row_number() OVER (PARTITION BY object_id ORDER BY metadata.entry_time DESC) = 1
-                """,
-                params=[[str(i) for i in object_ids], effective_time, entry_time],
-            ).to_arrow_table()
+            try:
+                table = self.__conn.sql(
+                    f"""
+                    SELECT *
+                    {from_spec}
+                    WHERE object_id IN (SELECT unnest(?))
+                    AND metadata.effective_time <= ?
+                    AND metadata.entry_time <= ?
+                    QUALIFY row_number() OVER (PARTITION BY object_id ORDER BY metadata.entry_time DESC) = 1
+                    """,
+                    params=[[str(i) for i in object_ids], effective_time, entry_time],
+                ).to_arrow_table()
 
-            results[directory] = table.to_pylist()
+                results[directory] = table.to_pylist()
+            except duckdb.IOException:
+                # This will happen if no objects of this type have been saved
+                pass
 
         return results
 

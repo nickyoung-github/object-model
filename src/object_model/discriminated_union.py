@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Any, TypeVar, Union, _SpecialForm, cast
+from typing import Annotated, Any, TypeVar, Union, _SpecialForm
 
 from pydantic import BeforeValidator, GetJsonSchemaHandler, Tag, WrapSerializer
 from pydantic import Discriminator as _Discriminator
@@ -17,7 +17,7 @@ class Discriminator[T]:
     field: str
     discriminator: str | Callable[[T], str]
 
-    def __call__(self, value: T):
+    def __call__(self, value: T) -> str:
         return getattr(value, self.discriminator) if isinstance(self.discriminator, str) else\
             self.discriminator(value)
 
@@ -43,26 +43,21 @@ class _TagJsonSchema:
     
         
 @_SpecialForm # pyright: ignore[reportCallIssue]
-def DiscriminatedUnion(_, params: tuple[type[Persistable | Discriminator], ...]):
+def DiscriminatedUnion(_, params: tuple[type | Discriminator, ...]):
     if not isinstance(params, tuple | list) or len(params) < 2:
         raise TypeError("Can only use with multiple Persistable types")
 
     if isinstance(params[-1], Discriminator):
-        tmp_types = params[:-1]
-        if len(tmp_types) < 2:
+        types = params[:-1]
+        if len(types) < 2:
             raise TypeError("Can only use with multiple Persistable types")
         discriminator = params[-1]
     else:
-        tmp_types = params
-        discriminator = Discriminator[type[Persistable]](
+        types = params
+        discriminator = Discriminator(
             field="_registered_name",
             discriminator=lambda t: TypeRegistry[Persistable]().registered_name(t)
         )
-
-    if not all(issubclass(t, Persistable) for t in tmp_types):
-        types: tuple[type[Persistable], ...] = cast(tuple[type[Persistable], ...], tmp_types)
-    else:
-        raise TypeError("Can only be used with Persistable types")
 
     def strip_tag(value: Any) -> Any:
         if isinstance(value, dict):
@@ -72,7 +67,7 @@ def DiscriminatedUnion(_, params: tuple[type[Persistable | Discriminator], ...])
     def dicriminate(value: Any) -> str | None:
         if isinstance(value, dict):
             return value[discriminator.field]
-        elif isinstance(value, Persistable):
+        elif isinstance(value, types):
             return discriminator(type(value))
         return None
         
