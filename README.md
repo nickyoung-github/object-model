@@ -109,7 +109,7 @@ some handling for dataclasses and references.
 
 ```python
 class Foo:
-    animal: Reference[DiscriminatedUnion[Dog, Cat, Wildebeast]]
+    animal: Reference[DiscriminatedUnion[Dog, Cat, Wildebeest]]
 ```
 
 ### Writing
