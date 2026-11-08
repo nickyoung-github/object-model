@@ -1,8 +1,7 @@
-from dataclasses import dataclass
 import datetime as dt
+from dataclasses import dataclass
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import Union
 
 from object_model import (
     Discriminated,

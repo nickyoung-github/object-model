@@ -54,5 +54,5 @@ class _Reference:
 
 
 __REFERENCE = _Reference()
-T = TypeVar("T", bound=type[Persistable])
+T = TypeVar("T", bound=Persistable)
 Reference = Annotated[T | Path, __REFERENCE]
